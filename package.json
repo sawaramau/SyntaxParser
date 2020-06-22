@@ -1,0 +1,11 @@
+{
+    "name": "interpreter",
+    "version": "0.0.1",
+    "description": "",
+    "main": "calcexe.js",
+    "scripts": {
+        "test": "node example.js"
+    },
+    "author": "",
+    "license": "MIT"
+}
