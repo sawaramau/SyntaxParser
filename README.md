@@ -32,7 +32,7 @@
     } else if (val.length == 2 && val == "0x") {
         return true;
     }
-    const hexreg = /^(0x[\d]+)$/;
+    const hexreg = /^(0x[\da-fA-F]+)$/;
     if (val.match(hexreg)) {
         return true;
     }
