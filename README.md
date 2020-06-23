@@ -27,6 +27,11 @@
 * 変数や数値など可変な要素は関数形式で定義します
 ```javascript
 (val) => {
+    if (val.length == 1 && val == "0") {
+        return true;
+    } else if (val.length == 2 && val == "0x") {
+        return true;
+    }
     const hexreg = /^(0x[\d]+)$/;
     if (val.match(hexreg)) {
         return true;
