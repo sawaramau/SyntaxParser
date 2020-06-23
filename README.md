@@ -19,14 +19,27 @@
 [1, "?", 1, ":", 1]
 ```
 ### 変数・リテラルの定義（0項の演算子）
-* 関数形式で定義
+* true/falseのような固定された予約語は通常の演算子同様、配列形式で指定します
+```javascript
+["true"]
+["false"]
+```
+* 変数や数値など可変な要素は関数形式で定義します
 ```javascript
 (val) => {
-    if ("true".indexOf(val) == 0 || "false".indexOf(val) == 0) {
+    const hexreg = /^(0x[\d]+)$/;
+    if (val.match(hexreg)) {
         return true;
     }
     return false;
 }
+(val) => {
+    const varreg = /^[a-zA-Z_][\w]*$/;
+    if (val.match(varreg)) {
+        return true;
+    }
+    return false;
+},
 ```
 * 上記のように、先頭から一致している限りtrueを返すような関数を定義する事で変数・リテラルを定義可能です
 * 変数の場合、演算方法の定義で別途名前解決の方法を用意する必要があります
@@ -38,19 +51,24 @@
 * 定義した演算子に対して、演算方法を定義できます
 ```javascript
 ["+", 2]
+["true"]
 ```
 * 例えば、上記のような演算子定義に対して、以下のように演算を定義できます。
 ```javascript
-(args) => {return args[0].value + args[1].value}
+// + 2
+(args) => {
+    return args[0].value + args[1].value;
+}
+// true
+() => {
+    return true;
+}
 ```
 * リテラルの場合
 ```javascript
-(arg) => {
-    if (arg == "true") {
-        return true;
-    } else {
-        return false;
-    }
+// hex
+(val) => {
+    return parseInt(val, 16);
 }
 ```
 
