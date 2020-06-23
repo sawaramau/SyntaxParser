@@ -364,17 +364,17 @@ class config {
             // リテラルとか
             [
                 new opdefine(
-                    (val) => {
-                        if ("true".indexOf(val) == 0 || "false".indexOf(val) == 0) {
-                            return true;
-                        }
-                        return false;
-                    },
+                    ["true"],
                     null,
-                    (val) => {
-                        if (val == "true") {
-                            return true;
-                        }
+                    () => {
+                        return true;
+                    },
+                    "bool"
+                ),
+                new opdefine(
+                    ["false"],
+                    null,
+                    () => {
                         return false;
                     },
                     "bool"
@@ -2133,6 +2133,7 @@ class contexts {
             return current;
         }
         let open = false;
+        const reserved = [];
         for (let define of this._constant) {
             if (define.firstmatch(keyword)) {
                 const op = define.make(keyword, this.program);
@@ -2141,15 +2142,19 @@ class contexts {
                     if (op.nexter) {
                         open = true;
                     }
+                    if (define.grammer instanceof Array) {
+                        reserved.push(op);
+                    }
                 }
             }
         }
+        const recurrent = reserved.length ? reserved : current;
         if (open) {
             const con = new context(keyword);
-            con.context = current;
+            con.context = recurrent;
             this._temporary.unshift(con);
         }
-        return current;
+        return recurrent;
     }
 
     current(keyword) {
