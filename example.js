@@ -1,5 +1,5 @@
 const Calc = require("./calculator.js");
-const text = '(1*(1*3 ? 0 : 1))';
+const text = '(a) => {1+1} ((a) => {1+1})(1)';
 const calc = new Calc.calculator(text);
 
 const strslice = (str, pos, insert, len = 5) => {
@@ -14,7 +14,9 @@ const view = (node, view, results, depth = 0) => {
             results[depth] += "   ";
         }
     }
-    if (node.first != "dec") {
+    if (node.type == Calc.itemtype.types().punctuation) {
+        results[depth] = strslice(results[depth], node.horizonal * 3, " ; ", 3);
+    } else if (node.first != "dec") {
         results[depth] = strslice(results[depth], node.horizonal * 3, " " + node.first + " ", 3);
     } else {
         let v = String(node.value);
@@ -41,6 +43,10 @@ for (let root of roots) {
         console.log(r);
     }
     console.log("------------- calc result -------------");
-    console.log("value: ", root.value);
+    if (root.type == Calc.itemtype.types().punctuation) {
+        console.log(root.value.map(v => v.value));
+    } else {
+        console.log(root.value);
+    }
 }
 return;
