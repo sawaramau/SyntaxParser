@@ -4,6 +4,15 @@ class config {
         this.join = new order();
         this.types = itemtype.types();
         this.calculator = calculator;
+        this.punctuation = (argv) => {
+            for (let arg of argv) {
+                if (arg.type == this.types.ret) {
+                    return arg.value;
+                }
+                arg.value;
+            }
+            return undefined;
+        };
 
         // *****同一の演算子の場合、項数の少ない演算子ほど優先度を高くすること*****
         // 例えば + 1 と 1 + 1 の場合、単項の方が優先度が高い
@@ -19,12 +28,7 @@ class config {
                     [1, "\n", 1],
                     this.join.order.left,
                     (argv) => {
-                        if (argv[0].type == this.types.punctuation) {
-                            const v = argv[0].value;
-                            v.push(argv[1]);
-                            return v;
-                        }
-                        return [argv[0], argv[1]];
+                        this.punctuation(argv);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -43,12 +47,7 @@ class config {
                     [1, "\r\n", 1],
                     this.join.order.left,
                     (argv) => {
-                        if (argv[0].type == this.types.punctuation) {
-                            const v = argv[0].value;
-                            v.push(argv[1]);
-                            return v;
-                        }
-                        return [argv[0], argv[1]];
+                        this.punctuation(argv);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -68,12 +67,7 @@ class config {
                     [2, ";"],
                     this.join.order.left,
                     (argv) => {
-                        if (argv[0].type == this.types.punctuation) {
-                            const v = argv[0].value;
-                            v.push(argv[1]);
-                            return v;
-                        }
-                        return [argv[0], argv[1]];
+                        this.punctuation(argv);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -94,11 +88,7 @@ class config {
                     [1, ";"],
                     this.join.order.left,
                     (argv) => {
-                        if (argv[0].type == this.types.punctuation) {
-                            const v = argv[0].value;
-                            return v;
-                        }
-                        return [argv[0]];
+                        this.punctuation(argv);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -201,7 +191,7 @@ class config {
                     "return", null, 0,
                     new typeset(
                         [],
-                        [this.types.through],
+                        [this.types.ret],
                         [
                             [this.types.control],
                         ]
@@ -212,13 +202,13 @@ class config {
                     this.join.order.right,
                     (argv) => {
                         () => {
-                            return argv[0].value;
+                            return argv[0];
                         }
                     },
                     "return", null, 0,
                     new typeset(
                         [],
-                        [this.types.through],
+                        [this.types.ret],
                         [
                             [this.types.control],
                         ]
@@ -267,7 +257,6 @@ class config {
                     )
                 ),
             ],
-
 
             [
                 // 条件演算
@@ -602,14 +591,7 @@ class config {
                     this.join.order.right,
                     (argv) => {
                         return (args) => {
-                            if (argv[1].type == this.types.punctuation) {
-                                for (let elm of argv[1].value) {
-                                    elm.value;
-                                }
-                            } else {
-                                return argv[1];
-                            }
-                            return 0;
+                            return argv[1];
                         };
                     },
                     "{}", null, 0,
@@ -1020,6 +1002,15 @@ class config {
     }
 }
 
+class myconsole {
+    static red(args) {
+        console.log('\u001b[31m', args, '\u001b[0m');
+    }
+    static green(args) {
+        console.log('\u001b[32m', args, '\u001b[0m');
+    }
+}
+
 // enumぽい振る舞いをする自作クラス
 class myenum {
     constructor(vals = {}, step = 1) {
@@ -1042,7 +1033,7 @@ class myenum {
             return acc || (self.indexOf(cur, i + 1) > i);
         }, false);
         if (acc) {
-            console.log("Duplication enum value");
+            myconsole.red("Duplication enum value");
         }
     }
 
@@ -1140,6 +1131,11 @@ class typeset {
         // delegates: [delegate1 function, delegate2 function,...]
         this._inputs = inputs;
         this._outputs = outputs;
+        const diff = inputs.length - outputs.length;
+        const last = outputs.slice(-1)[0];
+        for (let i = 0; i < diff; i++) {
+            this._outputs.push(last);
+        }
         this._unavailables = unavailables;
         this._delegates = delegates;
         this.types = itemtype.types();
@@ -1174,27 +1170,86 @@ class typeset {
     gettype(node) {
         // node: interpretation
         if (!this._outputs || this._outputs.length == 0) {
-            console.log("Output type undefined");
+            myconsole.red("Output type undefined");
             return undefined;
         } else if (this._outputs.length == 1) {
             if (
                 this._outputs[0] != this.types.ref
+                && this._outputs[0] != this.types.punctuation
                 && this._outputs[0] != this.types.delegate
                 && this._outputs[0] != this.types.through
             ) {
                 return this._outputs[0];
+            } else if (node && !node.left && !node.right && !node._parent) {
+                if (this._outputs[0] == this.types.delegate) {
+                    return this._delegates[0](node.args);
+                } else if (this._outputs[0] == this.types.punctuation) {
+                    if (node.value) {
+                        return node.value.type;
+                    } else {
+                        return this.types.undef;
+                    }
+                } else if (this._outputs[0] == this.types.through) {
+                    if (node.args.length) {
+                        return node.args[0].type;
+                    }
+                    return this.types.unsettled;
+                } else if (this._outputs[0] == this.types.ref) {
+                    if (node.value) {
+                        return node.value.type;
+                    }
+                    return this.types.unsettled;
+                }
+            }
+        }
+        if (node && !node.left && !node.right && !node._parent) {
+            let dele = 0;
+            for (let i = 0; i < this.inputs.length; i++) {
+                if (this.checkinput(this.inputs[i], node.args)) {
+                    if (this._outputs[i] == this.types.delegate) {
+                        return this._delegates[dele](node.args);
+                    } else if (this._outputs[i] == this.types.punctuation) {
+                        if (node.value) {
+                            return node.value.type;
+                        } else {
+                            return this.types.undef;
+                        }
+                    } else if (this._outputs[i] == this.types.through) {
+                        if (node.args.length) {
+                            return node.args[0].type;
+                        }
+                        return this.types.unsettled;
+                    } else if (this._outputs[i] == this.types.ref) {
+                        if (node.value) {
+                            return node.value.type;
+                        }
+                        return this.types.unsettled;
+                    }
+                    return this._outputs[i];
+                } else if (this._outputs[i] == this.types.delegate) {
+                    dele++;
+                }
             }
         }
         return this.types.unsettled;
+    }
+    checkinput(input, args) {
+        for (let i = 0; i < input.length; i++) {
+            if (input[i] != args[i].type) {
+                return false;
+            }
+        }
+        return true;
     }
 }
 
 class itemtype {
     static types() {
         let blank = myenum.define(0);
-        let control;
+        let control, ret;
         let number, string, bool, func, ref, array, object, punctuation, through, delegate, parallel, notunavailable;
         let unsettled;
+        let undef;
 
         const e = new myenum({
             blank,
@@ -1207,11 +1262,13 @@ class itemtype {
             array,
             object,
             punctuation,    // 句読点
+            ret,            // return
             through,        // 第1引数の型と同じ扱いとする特殊型
             delegate,       // 型決定論を解釈側に丸投げする
             parallel,       // カンマ区切りの並列表記
             notunavailable, // 利用不可指定されていない全ての要素
             unsettled,      // 実行時まで判別が付かない
+            undef,          // 未定義
         });
         return e.enum;
     }
@@ -1324,27 +1381,24 @@ class opdefine {
         return this._grammer(word);
     }
 
-    make(keyword, program) {
+    make(keyword) {
         if (this._grammer instanceof Array) {
             const int = new interpretation(this);
-            int.program = program;
             return int;
         }
         if (this.formula) {
-            const def = new opdefine([this.groupid], this.order, () => {
+            const def = new opdefine([keyword], this.order, () => {
                 return this.formula(keyword);
             }, this.groupid, this.meta, this.root, this._inouts);
             def.priority = this.priority;
             const int = new interpretation(def);
-            int.program = program;
             return int;
         } else {
-            const def = new opdefine([this.groupid], this.order, () => {
+            const def = new opdefine([keyword], this.order, () => {
                 return undefined;
             }, this.groupid, this.meta, this.root, this._inouts);
             def.priority = this.priority;
             const int = new interpretation(def);
-            int.program = program;
             return int;
         }
     }
@@ -1461,7 +1515,7 @@ class interpretation {
     // offsetは部分的な構文解析時に使用
     constructor(define, parent, offset = 0) {
         if (define === undefined) {
-            console.log("Unexpected define. This is undefined");
+            myconsole.red("Unexpected define. This is undefined");
         }
 
         this._invalid = false;
@@ -1469,9 +1523,7 @@ class interpretation {
         if (parent) {
             // 親の生成直後は位置が確定していないが、その段階では子にとっても親の位置は重要ではないため、
             // 適宜もらう事にする。
-            this._parent = () => {
-                return parent;
-            };
+            this._parent = parent;
         }
         this._left = [];   // left children
         this._childtrees = []; // 
@@ -1505,16 +1557,30 @@ class interpretation {
         if (!val || val == this || val.horizonal === undefined) {
             return;
         }
-        this._root = {
+        this._root = val;
+        /*
+        {
             horizonal: val.horizonal,
             vertical: val.vertical,
         };
+        */
+    }
+
+    get starter() {
+        let parent = this;
+        while (1) {
+            if (!parent._parent) {
+                return parent;
+            }
+            parent = parent.parent;
+        }
+
     }
 
     get root() {
         // 根を取得
         if (this._root) {
-            return this.program[this._root.horizonal - this.offset][this._root.vertical];
+            return this._root;
         }
         let root = this;
         while (root) {
@@ -1527,42 +1593,49 @@ class interpretation {
 
     // 自身の子要素以下についてhorizonalでアクセスする
     absolute(horizonal) {
+        const allnodes = this.allnodes;
         for (let node of this.allnodes) {
             if (node.horizonal == horizonal) {
                 return node;
             }
         }
+        myconsole.red("undefined absolute horizonal access:")
+        console.log(this.allnodes.map(v => v.horizonal));
+        for (let node of this.allnodes) {
+            if (node.horizonal == 10) {
+                console.log(node._rightblank.length, node._leftblank.length, node._childblanktrees.length);
+            }
+        }
+        console.log(horizonal, this.horizonal);
         return undefined;
     }
 
     set lefttree(val) {
         if (val) {
-            this._lefttree = {
+            this._lefttree = val;
+            /*{
                 horizonal: val.horizonal,
                 vertical: val.vertical
             };
+            */
         }
     }
     get lefttree() {
-        if (!this._lefttree) {
-            return undefined;
-        }
-        return this.program[this._lefttree.horizonal - this.offset][this._lefttree.vertical]
+        return this._lefttree;
     }
     set righttree(val) {
         if (val) {
-            this._righttree = {
+            this._righttree = val;
+            /*
+            {
                 horizonal: val.horizonal,
                 vertical: val.vertical
             };
+            */
         }
     }
     get righttree() {
-        if (!this._righttree) {
-            return undefined;
-        }
-
-        return this.program[this._righttree.horizonal - this.offset][this._righttree.vertical]
+        return this._righttree;
     }
 
     get roots() {
@@ -1580,7 +1653,7 @@ class interpretation {
                 left.push(root);
             } else {
                 // 同じインデックスの要素が親にいるわけがない。
-                console.log("Double interpretation violation");
+                myconsole.red("Double interpretation violation");
             }
             root = root.parent;
         }
@@ -1590,44 +1663,13 @@ class interpretation {
         }
     }
 
-    commit() {
-        const left = [];
-        for (let child of this._left) {
-            if (!(child instanceof interpretation)) {
-                const op = this.program[child.horizonal - this.offset][child.vertical];
-
-                op.commit();
-                left.push(op);
-            } else {
-                left.push(child);
-            }
-        }
-        this._left = left;
-        const right = [];
-        for (let child of this._right) {
-            if (!(child instanceof interpretation)) {
-                const op = this.program[child.horizonal - this.offset][child.vertical];
-
-                op.commit();
-                right.push(op);
-            } else {
-                right.push(child);
-            }
-        }
-        this._right = right;
-    }
-
     set childtrees(val) {
         this._childtrees = [];
         this._childblanktrees = [];
-        for (let def of val) {
-            const op = def;
-            op.program.push([this]);
+        for (let op of val) {
+            //const op = def;
+            //op.program.push([this]);
             op.parent = this;
-            // 閉じ記号側から閉じ記号成立時に確認した解釈にアクセスするために必要だと考えたものだが、
-            // 現状では閉じ記号出現のたびにprogramをコピーしてそのコピーに対してアクセスできるため、
-            // 完全な解釈を適宜持ち合わせられている。
-            // op.commit();// ← 不要だと思う。
             if (op.type == itemtype.types().blank) {
                 this._childblanktrees.push(op);
             } else {
@@ -1651,66 +1693,20 @@ class interpretation {
         return all;
     }
 
-    get typeset() {
-        return this.define._inouts;
-    }
-
-    get args() {
-        // 引数として渡すときの左右の要素
-        const left = this._left.map(child => {
-            if (child instanceof interpretation) {
-                return child;
-            }
-            return this.program[child.horizonal - this.offset][child.vertical];
-        });
-        const right = (() => {
-            const right = [];
-            let nexter = this.nexter;
-            while (nexter instanceof interpretation) {
-                for (let node of nexter.childtrees) {
-                    right.push(node);
-                }
-                for (let node of nexter._right) {
-                    if (node instanceof interpretation) {
-                        right.push(node);
-                    } else {
-                        right.push(this.program[node.horizonal - this.offset][node.vertical]);
-                    }
-                }
-                nexter = nexter.nexter;
-            }
-            for (let child of this._right) {
-                if (child instanceof interpretation) {
-                    right.push(child);
-                } else {
-                    right.push(this.program[child.horizonal - this.offset][child.vertical]);
-                }
-            }
-            return right;
-        })();
-        const children = [];
-        for (let child of left) {
-            children.push(child);
-        }
-        for (let child of right) {
-            children.push(child);
-        }
-        children.sort((l, r) => {
-            return l.horizonal - r.horizonal;
-        });
-        return children;
-    }
-
     get allchildren() {
         // 空白文字も含むすべての子供
         const left = this._left.map(child => {
             if (child instanceof interpretation) {
                 return child;
             }
-            return this.program[child.horizonal - this.offset][child.vertical];
+            //return this.program[child.horizonal - this.offset][child.vertical];
         });
         for (let child of this._leftblank) {
-            left.push(this.program[child.horizonal - this.offset][child.vertical]);
+            if (child instanceof interpretation) {
+                left.push(child);
+            } else {
+                //left.push(this.program[child.horizonal - this.offset][child.vertical]);
+            }
         }
         const right = (() => {
             const right = [];
@@ -1718,14 +1714,19 @@ class interpretation {
                 if (child instanceof interpretation) {
                     right.push(child);
                 } else {
-                    right.push(this.program[child.horizonal - this.offset][child.vertical]);
+                    //right.push(this.program[child.horizonal - this.offset][child.vertical]);
+                }
+            }
+            for (let child of this._rightblank) {
+                if (child instanceof interpretation) {
+                    right.push(child);
+                } else {
+                    //right.push(this.program[child.horizonal - this.offset][child.vertical]);
                 }
             }
             return right;
         })();
-        for (let child of this._rightblank) {
-            right.push(this.program[child.horizonal - this.offset][child.vertical]);
-        }
+
 
         const children = [];
         for (let child of left) {
@@ -1736,7 +1737,7 @@ class interpretation {
         }
         children.sort((l, r) => {
             if (l.horizonal == r.horizonal) {
-                console.log("Violation!");
+                myconsole.red("Violation!");
             }
             return l.horizonal - r.horizonal;
         });
@@ -1750,7 +1751,7 @@ class interpretation {
             if (child instanceof interpretation) {
                 return child;
             }
-            return this.program[child.horizonal - this.offset][child.vertical];
+            //return this.program[child.horizonal - this.offset][child.vertical];
         });
         const right = (() => {
             const right = [];
@@ -1758,7 +1759,7 @@ class interpretation {
                 if (child instanceof interpretation) {
                     right.push(child);
                 } else {
-                    right.push(this.program[child.horizonal - this.offset][child.vertical]);
+                    //right.push(this.program[child.horizonal - this.offset][child.vertical]);
                 }
             }
             return right;
@@ -1772,8 +1773,58 @@ class interpretation {
         }
         children.sort((l, r) => {
             if (l.horizonal == r.horizonal) {
-                console.log("Violation!");
+                myconsole.red("Violation!");
             }
+            return l.horizonal - r.horizonal;
+        });
+        return children;
+    }
+
+    get typeset() {
+        return this.define._inouts;
+    }
+
+    get args() {
+        // 引数として渡すときの左右の要素
+        const left = this._left.map(child => {
+            if (child instanceof interpretation) {
+                return child;
+            }
+            //return this.program[child.horizonal - this.offset][child.vertical];
+        });
+        const right = (() => {
+            const right = [];
+            let nexter = this.nexter;
+            while (nexter) {
+                for (let node of nexter.childtrees) {
+                    right.push(node);
+                }
+                for (let node of nexter._right) {
+                    if (node instanceof interpretation) {
+                        right.push(node);
+                    } else {
+                        //right.push(this.program[node.horizonal - this.offset][node.vertical]);
+                    }
+                }
+                nexter = nexter.nexter;
+            }
+            for (let child of this._right) {
+                if (child instanceof interpretation) {
+                    right.push(child);
+                } else {
+                    //right.push(this.program[child.horizonal - this.offset][child.vertical]);
+                }
+            }
+            return right;
+        })();
+        const children = [];
+        for (let child of left) {
+            children.push(child);
+        }
+        for (let child of right) {
+            children.push(child);
+        }
+        children.sort((l, r) => {
             return l.horizonal - r.horizonal;
         });
         return children;
@@ -1795,6 +1846,7 @@ class interpretation {
             rec(node.nexter, rec);
         };
         rec(this, rec);
+        nodes.sort((l, r) => l.horizonal - r.horizonal);
         return nodes;
     }
 
@@ -1824,7 +1876,7 @@ class interpretation {
             for (let child of children) {
                 const double = tree.find(n => n.horizonal == child.horizonal);
                 if (double) {
-                    console.log("Already recorded node!!");
+                    myconsole.red("Already recorded node!!");
                     break;
                 }
                 tree.push(child);
@@ -1848,6 +1900,18 @@ class interpretation {
     set previnterpretation(val) {
         this._previnterpretation = val;
     }
+
+    set context(val) {
+        this._context = val;
+    }
+
+    get context() {
+        if (!this._context) {
+            this._context = [];
+        }
+        return this._context;
+    }
+
     get others() {
         const others = [];
         const roots = this.roots;
@@ -1869,7 +1933,7 @@ class interpretation {
         bracket.close = roots.right.sort((l, r) => r.horizonal - l.horizonal).find((op) => op._parent);
 
 
-        for (let def of this.program[this.index]) {
+        for (let def of this.context) {
             if (!def) {
                 others.push(undefined);
             } else if (def.priority >= this.priority) {
@@ -1907,10 +1971,11 @@ class interpretation {
             } else if (!blank && roots.right.length && !this.define.right && def.priority < max.right.priority) {
                 // 自身が空白要素でなければ、自身が右手側に子要素を持たない時、右手側の親要素を越える事は出来ない
                 others.push(undefined);
-            } else if (def.define.left > this.index) {
-                others.push(undefined);
-            } else if (def.define.right + this.index >= this.program.length) {
-                others.push(undefined);
+                // 以下の検討はfirst要素の探索時に実行している
+                //} else if (def.define.left > this.index) {
+                //    others.push(undefined);
+                //} else if (def.define.right + this.index >= this.program.length) {
+                //    others.push(undefined);
             } else {
                 others.push(def);
             }
@@ -1926,14 +1991,17 @@ class interpretation {
         this._program = val;
     }
     get program() {
-        return this._program;
+        if (this._parent) {
+            //return this.parent.program;
+        }
+        //return this._program;
     }
 
     get clone() {
-        const elm = new interpretation(this.define, this._parent ? this._parent() : undefined, this.offset);
+        const elm = new interpretation(this.define, this._parent, this.offset);
         elm._nexter = this._nexter;
+        elm.context = this.context.slice();
         elm.childtrees = this._childtrees;
-        elm._childblanktrees = this._childblanktrees;
 
         elm.vertical = this._vertical;
         elm.horizonal = this.horizonal;
@@ -1944,6 +2012,7 @@ class interpretation {
         elm._tmpparent = this._tmpparent;
         elm._leftblank = this._leftblank.slice();
         elm._rightblank = this._rightblank.slice();
+        elm._childblanktrees = this._childblanktrees;
         return elm;
     }
     get fullgrammer() {
@@ -1962,14 +2031,11 @@ class interpretation {
             return undefined;
         }
         if (!this._nexter) {
-            const nexter = new interpretation(this.define.nexter, this);
+            const nexter = new interpretation(this.define.nexter, this, this.offset);
             nexter.program = this.program;
-            this._nexter = () => {
-                return nexter;
-            };
-            return nexter;
+            this._nexter = nexter;
         }
-        return this._nexter();
+        return this._nexter;
     }
 
     get value() {
@@ -1988,13 +2054,13 @@ class interpretation {
 
     set horizonal(val) {
         if (this._horizonal !== undefined) {
-            console.log("horizonal index is rewritten");
+            myconsole.red("horizonal index is rewritten");
         }
         this._horizonal = val;
     }
     set vertical(val) {
         if (this._vertical !== undefined) {
-            console.log("vertical index is rewritten");
+            myconsole.red("vertical index is rewritten");
         }
         this._vertical = val;
     }
@@ -2045,27 +2111,19 @@ class interpretation {
             // _parent は産みの親なので忘れない
             return;
         }
-        this._tmpparent = {
+        this._tmpparent = val;
+        /*
+        {
             horizonal: val.horizonal,
             vertical: val.vertical,
         };
+        */
     }
     get parent() {
         if (this._parent) {
-            return this._parent();
+            return this._parent;
         }
-        let horizonal;
-        let vertical;
-        if (this._tmpparent) {
-            horizonal = this._tmpparent.horizonal - this.offset;
-            vertical = this._tmpparent.vertical;
-        } else {
-            return undefined;
-        }
-        if (this.program && 0 <= horizonal && horizonal < this.program.length) {
-            return this.program[horizonal][vertical];
-        }
-        return undefined;
+        return this._tmpparent;
     }
 
     get define() {
@@ -2097,6 +2155,10 @@ class interpretation {
             if (this.priority > val.priority) {
                 return false;
             }
+            if (val.parent) {
+                return false;
+            }
+
             val.parent = this;
             this._leftblank.push(val);
         } else if (this.left > 0) {
@@ -2107,12 +2169,7 @@ class interpretation {
                 return false;
             }
             val.parent = this;
-            this._left.unshift(
-                {
-                    vertical: val.vertical,
-                    horizonal: val.horizonal
-                }
-            );
+            this._left.unshift(val);
             return true;
         }
         return false;
@@ -2125,8 +2182,13 @@ class interpretation {
             if (this.priority > val.priority) {
                 return false;
             }
+            if (val.parent) {
+                return false;
+            }
             val.parent = this;
+
             this._rightblank.unshift(val);
+            return true;
         } else if (this.right > 0) {
             if (this.priority > val.priority) {
                 return false;
@@ -2135,10 +2197,7 @@ class interpretation {
                 return false;
             }
             val.parent = this;
-            this._right.push({
-                vertical: val.vertical,
-                horizonal: val.horizonal
-            });
+            this._right.push(val);
             return true;
         }
         return false;
@@ -2203,8 +2262,7 @@ class context {
 
     push(interpretation) {
         if (interpretation.define.first != this.first) {
-            console.log("Unmatch operator", interpretation.fullgrammer, ",", this.first);
-
+            myconsole.red("Unmatch operator", interpretation.fullgrammer, ",", this.first);
         }
         if (!interpretation.nexter) {
             interpretation.brothers = () => {
@@ -2239,7 +2297,7 @@ class context {
             }
         }
         if (!first) {
-            console.log("All interpretations invalid!!");
+            myconsole.red("All interpretations invalid!!");
         }
         return true;
     }
@@ -2273,6 +2331,7 @@ class contexts {
             interpretation.horizonal = this.program.length;
             interpretation.vertical = i;
             interpretation.program = this.program;
+            interpretation.context = context;
             i++;
         }
 
@@ -2294,7 +2353,14 @@ class contexts {
                     array.push(undefined);
                     continue;
                 }
-                const clone = def.clone;
+                const clone = (() => {
+                    const clone = def.clone;
+                    if (clone._parent) {
+                        // 結合子は親と同期する
+                        return clone._parent.nexter;
+                    }
+                    return clone;
+                })()
                 clone.offset = start;
                 clone.program = program;
                 array.push(clone);
@@ -2541,7 +2607,7 @@ class contexts {
                 const vertical = program[i].length - 1 - j;
                 const op = program[i][vertical];
                 if (!op) {
-                    console.log("undefined code!!");
+                    myconsole.red("undefined code!!");
                     continue;
                 }
 
@@ -2550,7 +2616,7 @@ class contexts {
                 }
                 const interpretation = interpretations.find(def => def.horizonal == op.horizonal);
                 if (interpretations.length && !interpretation) {
-                    console.log("Error!!", op.fullgrammer, op.define.first, op.horizonal);
+                    myconsole.red("Error!!", op.fullgrammer, op.define.first, op.horizonal);
                 }
 
                 if (interpretation && interpretation.vertical < op.vertical) {
@@ -2565,7 +2631,6 @@ class contexts {
                     if (nexter.vertical < op.vertical) {
                         op.invalid = true;
                     } else if (nexter.vertical == op.vertical) {
-                        program[i][vertical] = nexter;
                         nexter = nexter.nexter;
                         break;
                     }
@@ -2623,7 +2688,7 @@ class contexts {
             return acc;
         }, []).sort((l, r) => {
             if (l.horizonal == r.horizonal) {
-                console.log("Violation!", l.horizonal, l.root.horizonal, r.root.horizonal);
+                myconsole.red("Violation!", l.horizonal, l.root.horizonal, r.root.horizonal);
             }
             return l.horizonal - r.horizonal;
         });
@@ -2638,6 +2703,16 @@ class contexts {
         completes.fill(false);
         for (let context of contexts) {
             this.minstruct(context, program, completes, start);
+        }
+        if (completes.includes(false)) {
+            myconsole.red("Incomprehensible operators exist");
+            const fails = completes.reduce((acc, cur, idx) => {
+                if (!cur) {
+                    acc.push(start + idx);
+                }
+                return acc;
+            }, []);
+            myconsole.red(fails);
         }
 
         return program;
@@ -2665,6 +2740,17 @@ class contexts {
         for (let context of contexts) {
             this.minstruct(context, program, completes, start);
         }
+        if (completes.includes(false)) {
+            myconsole.red("Incomprehensible operators exist");
+            const fails = completes.reduce((acc, cur, idx) => {
+                if (!cur) {
+                    acc.push(start + idx);
+                }
+                return acc;
+            }, []);
+            myconsole.red(fails);
+        }
+
         return program;
     }
 
@@ -2696,6 +2782,7 @@ class contexts {
                 self.invalid = true;
                 return;
             }
+
             // self: 1つの解釈
             // order: 探索方向。true: 左方向 false: 右方向
             const step = order ? -1 : 1;
@@ -2715,44 +2802,26 @@ class contexts {
                     break;
                 }
 
-                // 探索方向の必要子要素が0になっても終了
-                if (self.type != itemtype.types().blank) {
-                    if ((step == -1) && !self.left || (step == 1) && !self.right) {
-                        break;
-                    }
-                } else if (self.parent) {
+                // 優先度の高い順に文脈を並び変える。
+                const neighbors = program[j].slice().reverse();
+                if (
+                    !neighbors.find(def => {
+                        return def && !def.invalid;
+                    }) || neighbors.find(def => {
+                        return def && !def.invalid;
+                    }).priority < self.priority
+                ) {
+                    // 隣接要素の最大優先度が自身より低いとき、その要素を超える方法はない。
                     break;
                 }
 
-                // 優先度の高い順に文脈を並び変える。
-                const neighbors = program[j].slice().reverse();
-                if (self.type != itemtype.types().blank) {
-                    if (
-                        !neighbors.find(def => {
-                            return def && !def.invalid;
-                        }) || neighbors.find(def => {
-                            return def && !def.invalid;
-                        }).priority < self.priority
-                    ) {
-                        // 隣接要素の最大優先度が自身より低いとき、その要素を超える方法はない。
-                        break;
-                    }
-                }
-
+                // 既に完了しているか確認
+                let complete = ((step == -1) && !self.left || (step == 1) && !self.right);
+                let blank = false;
                 for (let neighbor of neighbors) {
-                    if (self.type == itemtype.types().blank) {
-                        if (step == 1) {
-                            neighbor.setleft(self);
-                        } else {
-                            neighbor.setright(self);
-                        }
-                        break;
-                    }
                     // より優先度の高い子を探す
-                    else if (self.priority > neighbor.priority) {
+                    if (self.priority > neighbor.priority) {
                         // 自身の優先度より低い要素は無視。これ以降も総じて優先度が低いのでbreak
-                        break;
-                    } else if (neighbor.type == itemtype.types().blank) {
                         break;
                     } else if ((neighbor.left) || (neighbor.right)) {
                         // 隣接要素が子を揃えられていないならば、その隣接要素は地雷なので無視
@@ -2775,6 +2844,7 @@ class contexts {
                         } else {
                             self.setright(neighbor);
                         }
+                        blank = (neighbor.type == itemtype.types().blank);
                         if (neighbor.nexter && neighbor.nexter.horizonal !== undefined) {
                             i = Math.abs(neighbor.nexter.horizonal - self.horizonal) > i ?
                                 Math.abs(neighbor.nexter.horizonal - self.horizonal) : i;
@@ -2784,6 +2854,13 @@ class contexts {
                     }
                 }
                 i++;
+                // 探索方向の必要子要素が0になっても終了
+                // ただし、隣の要素が空白要素の場合、まだ考える
+                if (!blank && complete) {
+                    break;
+                }
+
+
             }
         };
 
@@ -2861,7 +2938,7 @@ class contexts {
         const reserved = [];
         for (let define of this._constant) {
             if (define.firstmatch(keyword)) {
-                const op = define.make(keyword, this.program);
+                const op = define.make(keyword);
                 if (op) {
                     current.push(op);
                     if (op.nexter) {
@@ -2894,20 +2971,22 @@ class contexts {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
                 this._temporary[index] = new context(keyword);
+
+                const roots = this.dependency(nexters[0].parent.horizonal + 1);
+                const length = (() => {
+                    if (roots.length != 1) {
+                        return roots.length;
+                    }
+                    if (roots[0].type == itemtype.types().blank) {
+                        return 0;
+                    }
+                    return 1;
+                })();
                 this._temporary[index].context = nexters.filter((op) => {
                     if (op) {
-                        const roots = this.dependency(op.parent.horizonal + 1);
-                        const length = (() => {
-                            if (roots.length != 1) {
-                                return roots.length;
-                            }
-                            if (roots[0].type == itemtype.types().blank) {
-                                return 0;
-                            }
-                            return 1;
-                        })();
                         if (length != op.left) {
                             op.invalid = true;
+                            op.root.invalid = true;
                             return false;
                         } else {
                             op.childtrees = roots;

@@ -1,5 +1,7 @@
 const Calc = require("./calculator.js");
-const text = '(a) => {1+1} ((a) => {1+1})(1)';
+//const text = '((1))';
+const text = '((1)=>{1+1 } )(1)';
+//const text = '(true?2:3 )';
 const calc = new Calc.calculator(text);
 
 const strslice = (str, pos, insert, len = 5) => {
@@ -43,10 +45,7 @@ for (let root of roots) {
         console.log(r);
     }
     console.log("------------- calc result -------------");
-    if (root.type == Calc.itemtype.types().punctuation) {
-        console.log(root.value.map(v => v.value));
-    } else {
-        console.log(root.value);
-    }
+
+    console.log(root.value);
 }
 return;
