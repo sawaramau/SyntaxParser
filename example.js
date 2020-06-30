@@ -1,51 +1,23 @@
 const Calc = require("./calculator.js");
-//const text = '((1))';
-const text = '((1)=>{1+1 } )(1)';
-//const text = '(true?2:3 )';
+const text = 'return ((1)=>{1+1; if (1) {return 5}; return 2;})(1);'; // if true
+const text2 = 'return ((1)=>{1+1; if (0) {return 5}; return 2;})(1);'; // if false
+const text3 = '((1)=>{1+1; if (0) {return 5}; return 2;})(1);'; // no return
+const text4 = 'return ((1)=>{1+1; if (1) { if (1) { if (1) {return 3}; return 2}; return 5 }; return 2;})(1);'; // if -> if -> if
 const calc = new Calc.calculator(text);
+const calc2 = new Calc.calculator(text2);
+const calc3 = new Calc.calculator(text3);
+const calc4 = new Calc.calculator(text4);
 
-const strslice = (str, pos, insert, len = 5) => {
-    const a = str.slice(0, pos);
-    const b = str.slice(pos + len);
-    return a + insert + b;
-};
-const view = (node, view, results, depth = 0) => {
-    if (results[depth] === undefined) {
-        results[depth] = "";
-        for (let i = 0; i < text.length; i++) {
-            results[depth] += "   ";
-        }
-    }
-    if (node.type == Calc.itemtype.types().punctuation) {
-        results[depth] = strslice(results[depth], node.horizonal * 3, " ; ", 3);
-    } else if (node.first != "dec") {
-        results[depth] = strslice(results[depth], node.horizonal * 3, " " + node.first + " ", 3);
-    } else {
-        let v = String(node.value);
-        while (v.length < 3) {
-            v = " " + v;
-        }
-
-        results[depth] = strslice(results[depth], node.horizonal * 3, v, 3);
-    }
-    for (let n of node.args) {
-        if (n != node) {
-            view(n, view, results, depth + 1);
-        }
-    }
-}
-console.log("-------------   formula   -------------");
+console.log("-------------   calc1   -------------");
 console.log(text);
-const roots = calc.result.dependency();
-for (let root of roots) {
-    console.log("------------- parsed tree -------------");
-    const results = [];
-    view(root, view, results, 0);
-    for (let r of results) {
-        console.log(r);
-    }
-    console.log("------------- calc result -------------");
-
-    console.log(root.value);
-}
+console.log(calc.return().value);
+console.log("-------------   calc2   -------------");
+console.log(text2);
+console.log(calc2.return().value);
+console.log("-------------   calc3   -------------");
+console.log(text3);
+console.log(calc3.return().value);
+console.log("-------------   calc4   -------------");
+console.log(text4);
+console.log(calc4.return().value);
 return;
