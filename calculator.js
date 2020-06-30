@@ -6,8 +6,15 @@ class config {
         this.calculator = calculator;
         this.punctuation = (argv) => {
             for (let arg of argv) {
+                //console.log(arg.first, arg.horizonal, arg.type, this.types.ret);
                 if (arg.type == this.types.ret) {
                     return arg.value;
+                } else if (arg.type == this.types.control) {
+                    if (arg.value !== undefined) {
+                        if (arg.value.type == this.types.ret) {
+                            return arg.value.value;
+                        }
+                    }
                 }
                 arg.value;
             }
@@ -28,7 +35,7 @@ class config {
                     [1, "\n", 1],
                     this.join.order.left,
                     (argv) => {
-                        this.punctuation(argv);
+                        return this.punctuation(argv);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -47,7 +54,7 @@ class config {
                     [1, "\r\n", 1],
                     this.join.order.left,
                     (argv) => {
-                        this.punctuation(argv);
+                        return this.punctuation(argv);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -67,7 +74,7 @@ class config {
                     [1, ";", 1],
                     this.join.order.left,
                     (argv) => {
-                        this.punctuation(argv);
+                        return this.punctuation(argv);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -88,7 +95,7 @@ class config {
                     [1, ";"],
                     this.join.order.left,
                     (argv) => {
-                        this.punctuation(argv);
+                        return this.punctuation(argv);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -111,11 +118,12 @@ class config {
                     ["if", "(", 1, ")", "{", 1, "}"],
                     this.join.order.right,
                     (argv) => {
-                        () => {
-                            if (argv[0].value) {
-                                argv[1].value;
-                            }
+                        
+                        if (argv[0].value) {
+                            return argv[1];
                         }
+                        return undefined;
+                    
                     },
                     "if", null, 0,
                     new typeset(
@@ -162,9 +170,7 @@ class config {
                     ["return", 1],
                     this.join.order.right,
                     (argv) => {
-                        () => {
-                            return argv[0];
-                        }
+                        return argv[0];
                     },
                     "return", null, 0,
                     new typeset(
@@ -304,6 +310,7 @@ class config {
                 ),
             ],
 
+            /*
             [
                 // 
                 new opdefine(
@@ -315,13 +322,14 @@ class config {
                     ":", null, 0,
                     new typeset(
                         [],
-                        [],
+                        [this.types.control],
                         [
                             [this.types.control],
                         ]
                     )
                 ),
             ],
+            */
             [
                 // 論理演算3
                 new opdefine(
@@ -587,6 +595,30 @@ class config {
                     )
                 ),
             ],
+
+            [
+                new opdefine(
+                    ["(", 1, ")", "=>", "{", 1, "}"],
+                    this.join.order.right,
+                    (argv) => {
+                        return (args) => {
+                            return argv[1].value;
+                        };
+                    },
+                    "{}", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.func],
+                        [
+                            [this.types.control, this.types.punctuation],
+                            [this.types.parallel],
+                        ],
+                    )
+                ),
+
+
+            ],
+
             [
                 // operator
                 // brackets
@@ -611,11 +643,12 @@ class config {
                         ],
                         [
                             (argv) => {
-                                return argv[0].value(argv[1].value).type;
+                                return argv[0].value(argv[1].value)//.type;
                             }
                         ],
                     )
                 ),
+                
                 new opdefine(
                     [1, "[", 1, "]"],
                     this.join.order.left,
@@ -650,28 +683,6 @@ class config {
                         ],
                     )
                 ),
-            ],
-            [
-                new opdefine(
-                    ["(", 1, ")", "=>", "{", 1, "}"],
-                    this.join.order.right,
-                    (argv) => {
-                        return (args) => {
-                            return argv[1];
-                        };
-                    },
-                    "{}", null, 0,
-                    new typeset(
-                        [],
-                        [this.types.func],
-                        [
-                            [this.types.control, this.types.punctuation],
-                            [this.types.parallel],
-                        ],
-                    )
-                ),
-
-
             ],
             [
                 // values
@@ -738,6 +749,25 @@ class config {
             ],
             // リテラルとか
             [
+                new opdefine(
+                    ["undefined"],
+                    null,
+                    () => {
+                        return undefined;
+                    },
+                    "undefined", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [
+                            this.types.undef
+                        ],
+                        [
+                        ],
+                        [
+                        ],
+                    )
+                ),
                 new opdefine(
                     ["true"],
                     null,
@@ -1342,7 +1372,7 @@ class typeset {
                     return this._delegates[0](node.args);
                 } else if (this._outputs[0] == this.types.punctuation) {
                     if (node.value) {
-                        return node.value.type;
+                        return this.types.ret;
                     } else {
                         return this.types.undef;
                     }
@@ -1367,7 +1397,7 @@ class typeset {
                         return this._delegates[dele](node.args);
                     } else if (this._outputs[i] == this.types.punctuation) {
                         if (node.value) {
-                            return node.value.type;
+                            return this.types.ret;
                         } else {
                             return this.types.undef;
                         }
@@ -2274,7 +2304,7 @@ class interpretation {
         if (this._parent) {
             this.parent.invalid = val;
         }
-        if (val) {
+        if (0) {
             // release
             this._left = null;   // left children
             this._childtrees = null; // 
@@ -3348,6 +3378,18 @@ class ops {
         return match;
     }
 
+    get undefined() {
+        if (this._undefined === undefined) {
+            for (let def of this.constant) {
+                if (def.gettype() == itemtype.types().undef) {
+                    this._undefined = def;
+                    break;
+                }
+            }
+        }
+        return this._undefined;
+    }
+
     constructor(opdefines) {
         // opdefines: [               priority
         //    [opdefine, opdefine],     low
@@ -3379,6 +3421,14 @@ class calculator {
             this.text = new mystr(text);
         }
         this.parse();
+    }
+
+    return() {
+        const result = this.result.dependency();
+        if (result[0].type == itemtype.types().ret || result[0].type == itemtype.types().punctuation) {
+            return result[0].value;
+        }
+        return new interpretation(this.config.ops.undefined);
     }
 
     parse() {
