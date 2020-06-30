@@ -64,7 +64,7 @@ class config {
                 ),
 
                 new opdefine(
-                    [2, ";"],
+                    [1, ";", 1],
                     this.join.order.left,
                     (argv) => {
                         this.punctuation(argv);
@@ -89,28 +89,6 @@ class config {
                     this.join.order.left,
                     (argv) => {
                         this.punctuation(argv);
-                    },
-                    "punctuation", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.punctuation
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-
-            ],
-            [
-                new opdefine(
-                    [";"],
-                    this.join.order.left,
-                    (argv) => {
-                        return [];
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -261,6 +239,28 @@ class config {
             [
                 // 条件演算
                 new opdefine(
+                    [1, "?", 1, ":", 1, ":", 1, ":", 1],
+                    this.join.order.right,
+                    (argv) => {
+                        return argv[0].value ? argv[1].value : argv[2].value;
+                    },
+                    "?", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.delegate],
+                        [
+                            [this.types.control],
+                            [this.types.control, this.types.punctuation],
+                        ],
+                        [(args) => {
+                            args[0].value ? args[1].type : args[2].type;
+                        }]
+                    )
+                ),
+            ],
+            [
+                // 条件演算
+                new opdefine(
                     [1, "?", 1, ":", 1],
                     this.join.order.right,
                     (argv) => {
@@ -299,7 +299,6 @@ class config {
                     )
                 ),
             ],
-
 
             [
                 // 
@@ -1558,12 +1557,6 @@ class interpretation {
             return;
         }
         this._root = val;
-        /*
-        {
-            horizonal: val.horizonal,
-            vertical: val.vertical,
-        };
-        */
     }
 
     get starter() {
@@ -1999,16 +1992,19 @@ class interpretation {
 
     get clone() {
         const elm = new interpretation(this.define, this._parent, this.offset);
+        elm._vertical = this._vertical;
+        elm._horizonal = this._horizonal;
+        elm._invalid = this._invalid;
+        if (elm.invalid) {
+            return elm;
+        }
         elm._nexter = this._nexter;
-        elm.context = this.context.slice();
-        elm.childtrees = this._childtrees;
+        elm._context = this._context.slice();
+        elm._childtrees = this._childtrees;
 
-        elm.vertical = this._vertical;
-        elm.horizonal = this.horizonal;
         elm._left = this._left.slice();
         elm._right = this._right.slice();
-        elm._invalid = this._invalid;
-        elm.brothers = this.brothers;
+        elm._brothers = this._brothers;
         elm._tmpparent = this._tmpparent;
         elm._leftblank = this._leftblank.slice();
         elm._rightblank = this._rightblank.slice();
@@ -2089,20 +2085,33 @@ class interpretation {
     }
 
     get invalid() {
-        if (this._parent) {
-            if (this.parent.invalid) {
-                return true;
+        if (this._invalid) {
+            return true;
+        }
+        
+        if (this.nexter) {
+            if (this.nexter.invalid) {
+                this.invalid = true;
             }
         }
         if (this.brothers && this.brothers()) {
-            return true;
+            this.invalid = true;
         }
-
         return this._invalid;
     }
     set invalid(val) {
         if (this._parent) {
             this.parent.invalid = val;
+        }
+        if (val) {
+            // release
+            this._left = null;   // left children
+            this._childtrees = null; // 
+            this._right = null;  // right children
+            this._brothers = null;
+            this._leftblank = null;
+            this._rightblank = null;
+            this._childblanktrees = null; // 
         }
         return this._invalid = val;
     }
@@ -2763,8 +2772,20 @@ class contexts {
             end = this.program.length;
         }
         const program = this.mintrees(start, end);
-
-        return this.retree(program);
+        const trees = this.retree(program);
+        const nodes = trees.reduce((acc, cur) => {
+            for (let node of cur.allnodes) {
+                acc.push(node);
+            }
+            return acc;
+        }, []);
+        nodes.map((v, idx, self) => {
+            if (self.slice(idx + 1).find(n => v.horizonal == n.horizonal)) {
+                myconsole.red("Duplication interpretation");
+                console.log(v.horizonal);
+            }
+        });
+        return trees;
     }
 
     minstruct(context, program, completes, start) {
@@ -2778,7 +2799,10 @@ class contexts {
                 return;
             }
 
-            if (self.invalid || !self.finished) {
+            // 自身が無効な命令ならばなにもしない。
+            if (self.invalid) {
+                return;
+            } else if (!self.finished) {
                 self.invalid = true;
                 return;
             }
@@ -2823,12 +2847,15 @@ class contexts {
                     if (self.priority > neighbor.priority) {
                         // 自身の優先度より低い要素は無視。これ以降も総じて優先度が低いのでbreak
                         break;
+                    } else if (neighbor.invalid) {
+                        // 別ルートでinvalid指定されている要素も無視
+                        continue;
+                    } else if (!neighbor.finished) {
+                        // 現段階で閉じていないならば生涯閉じる事はない。
+                        neighbor.invalid = true;
+                        continue;
                     } else if ((neighbor.left) || (neighbor.right)) {
                         // 隣接要素が子を揃えられていないならば、その隣接要素は地雷なので無視
-                        continue;
-                    } else if (neighbor.invalid || !neighbor.finished) {
-                        // 別ルートでinvalid指定されている要素も無視
-                        neighbor.invalid = true;
                         continue;
                     } else if (neighbor.parent && (neighbor.parent.horizonal != self.horizonal)) {
                         // 隣接要素が親を持ち、その親のindexが自身と異なるとき
@@ -2972,7 +2999,7 @@ class contexts {
                 }); // [interpretation, interpretation, interpretation,...];
                 this._temporary[index] = new context(keyword);
 
-                const roots = this.dependency(nexters[0].parent.horizonal + 1);
+                const roots = this.dependency(nexters.find(v => !v.invalid).parent.horizonal + 1);
                 const length = (() => {
                     if (roots.length != 1) {
                         return roots.length;
@@ -2986,7 +3013,6 @@ class contexts {
                     if (op) {
                         if (length != op.left) {
                             op.invalid = true;
-                            op.root.invalid = true;
                             return false;
                         } else {
                             op.childtrees = roots;
