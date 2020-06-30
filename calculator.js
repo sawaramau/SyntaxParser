@@ -1002,11 +1002,122 @@ class config {
 }
 
 class myconsole {
-    static red(args) {
-        console.log('\u001b[31m', args, '\u001b[0m');
+    // color code refference: https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
+    static standard(elm) {
+        if (elm === undefined) {
+            return "\u001b[90m" + "undefined" + '\u001b[0m';
+        } if ((typeof elm) == "string") {
+            return elm;
+        } else if ((typeof elm) == "number") {
+            return '\u001b[32m' + elm + '\u001b[0m';
+        } else if (elm instanceof Array) {
+            text += myconsole.array(elm);
+        } else if (elm instanceof Object) {
+            text += myconsole.object(elm);
+        }
+        return undefined;
     }
-    static green(args) {
-        console.log('\u001b[32m', args, '\u001b[0m');
+    static array(arr) {
+        let text = "[";
+        const len = arr.length;
+        let i = 0;
+        for (let elm of arr) {
+            const tmp = myconsole.standard(elm);
+            if (tmp !== undefined) {
+                text += tmp;
+            }
+            i++;
+            if (i < len) {
+                text += ", ";
+            }
+        }
+        text += "]";
+        return text;
+    }
+    static object(obj) {
+        let text = "{";
+        const len = obj.length;
+        let i = 0;
+        for (let key of Object.keys(obj)) {
+            
+            let tmp = myconsole.standard(key);
+            if (tmp !== undefined) {
+                text += tmp;
+            }
+            text += " : ";
+            const elm = obj[key];
+            tmp = myconsole.standard(elm);
+            if (tmp !== undefined) {
+                text += tmp;
+            }
+            i++;
+            if (i < len) {
+                text += ", ";
+            }
+        }
+        text += "}";
+        return text;
+    }
+    static log(arr) {
+        const len = arr.length - 1;
+        console.log(arr.reduce((acc, cur, idx) => {
+            acc += myconsole.standard(cur);
+            if (idx < len && !(acc.slice(-1)[0] == "\n")) {
+                acc += " ";
+            }
+            return acc;
+        }, ""));
+    }
+
+
+    static implmenterror() {
+        const array = ["Maybe implematation error\r\n"];
+        for (let i = 0; i < arguments.length; i++) {
+            if ((typeof arguments[i]) == "string") {
+                array.push('\u001b[33m' + arguments[i] + '\u001b[0m');
+            } else {
+                array.push(arguments[i]);
+            }
+        }
+        myconsole.log(array);
+    }
+
+
+    static defineerror() {
+        const array = []
+        for (let i = 0; i < arguments.length; i++) {
+            if ((typeof arguments[i]) == "string") {
+                array.push('\u001b[31m' + arguments[i] + '\u001b[0m');
+            } else {
+                array.push(arguments[i]);
+            }
+        }
+        myconsole.log(array);
+    }
+
+    
+    static red() {
+        const array = []
+        for (let i = 0; i < arguments.length; i++) {
+            if ((typeof arguments[i]) == "string") {
+                array.push('\u001b[31m' + arguments[i] + '\u001b[0m');
+            } else {
+                array.push(arguments[i]);
+            }
+        }
+        myconsole.log(array);
+    }
+
+    static green() {
+        const array = []
+        for (let i = 0; i < arguments.length; i++) {
+            if ((typeof arguments[i]) == "string") {
+                array.push('\u001b[32m' + arguments[i] + '\u001b[0m');
+            } else {
+                array.push(arguments[i]);
+            }
+        }
+        myconsole.log(array);
     }
 }
 
@@ -1032,7 +1143,7 @@ class myenum {
             return acc || (self.indexOf(cur, i + 1) > i);
         }, false);
         if (acc) {
-            myconsole.red("Duplication enum value");
+            myconsole.defineerror("Duplication enum value");
         }
     }
 
@@ -1169,7 +1280,7 @@ class typeset {
     gettype(node) {
         // node: interpretation
         if (!this._outputs || this._outputs.length == 0) {
-            myconsole.red("Output type undefined");
+            myconsole.defineerror("Output type undefined");
             return undefined;
         } else if (this._outputs.length == 1) {
             if (
@@ -1514,7 +1625,7 @@ class interpretation {
     // offsetは部分的な構文解析時に使用
     constructor(define, parent, offset = 0) {
         if (define === undefined) {
-            myconsole.red("Unexpected define. This is undefined");
+            myconsole.defineerror("Unexpected define. This is undefined");
         }
 
         this._invalid = false;
@@ -1592,14 +1703,8 @@ class interpretation {
                 return node;
             }
         }
-        myconsole.red("undefined absolute horizonal access:")
-        console.log(this.allnodes.map(v => v.horizonal));
-        for (let node of this.allnodes) {
-            if (node.horizonal == 10) {
-                console.log(node._rightblank.length, node._leftblank.length, node._childblanktrees.length);
-            }
-        }
-        console.log(horizonal, this.horizonal);
+        myconsole.implmenterror("undefined absolute horizonal access:", this.allnodes.map(v => v.horizonal))
+        myconsole.implmenterror(horizonal, this.horizonal);
         return undefined;
     }
 
@@ -1646,7 +1751,7 @@ class interpretation {
                 left.push(root);
             } else {
                 // 同じインデックスの要素が親にいるわけがない。
-                myconsole.red("Double interpretation violation");
+                myconsole.implmenterror("Double interpretation violation");
             }
             root = root.parent;
         }
@@ -1730,7 +1835,7 @@ class interpretation {
         }
         children.sort((l, r) => {
             if (l.horizonal == r.horizonal) {
-                myconsole.red("Violation!");
+                myconsole.implmenterror("Violation!");
             }
             return l.horizonal - r.horizonal;
         });
@@ -1766,7 +1871,7 @@ class interpretation {
         }
         children.sort((l, r) => {
             if (l.horizonal == r.horizonal) {
-                myconsole.red("Violation!");
+                myconsole.implmenterror("Violation!");
             }
             return l.horizonal - r.horizonal;
         });
@@ -1869,7 +1974,7 @@ class interpretation {
             for (let child of children) {
                 const double = tree.find(n => n.horizonal == child.horizonal);
                 if (double) {
-                    myconsole.red("Already recorded node!!");
+                    myconsole.implmenterror("Already recorded node!!");
                     break;
                 }
                 tree.push(child);
@@ -2050,13 +2155,13 @@ class interpretation {
 
     set horizonal(val) {
         if (this._horizonal !== undefined) {
-            myconsole.red("horizonal index is rewritten");
+            myconsole.implmenterror("horizonal index is rewritten");
         }
         this._horizonal = val;
     }
     set vertical(val) {
         if (this._vertical !== undefined) {
-            myconsole.red("vertical index is rewritten");
+            myconsole.implmenterror("vertical index is rewritten");
         }
         this._vertical = val;
     }
@@ -2100,6 +2205,9 @@ class interpretation {
         return this._invalid;
     }
     set invalid(val) {
+        if (this._invalid && !val) {
+            myconsole.implmenterror("Judge invalid failure");
+        }
         if (this._parent) {
             this.parent.invalid = val;
         }
@@ -2271,7 +2379,7 @@ class context {
 
     push(interpretation) {
         if (interpretation.define.first != this.first) {
-            myconsole.red("Unmatch operator", interpretation.fullgrammer, ",", this.first);
+            myconsole.implmenterror("Unmatch operator", interpretation.fullgrammer, ",", this.first);
         }
         if (!interpretation.nexter) {
             interpretation.brothers = () => {
@@ -2306,7 +2414,7 @@ class context {
             }
         }
         if (!first) {
-            myconsole.red("All interpretations invalid!!");
+            myconsole.defineerror("All interpretations invalid!!");
         }
         return true;
     }
@@ -2616,7 +2724,7 @@ class contexts {
                 const vertical = program[i].length - 1 - j;
                 const op = program[i][vertical];
                 if (!op) {
-                    myconsole.red("undefined code!!");
+                    myconsole.defineerror("undefined code!!");
                     continue;
                 }
 
@@ -2625,7 +2733,7 @@ class contexts {
                 }
                 const interpretation = interpretations.find(def => def.horizonal == op.horizonal);
                 if (interpretations.length && !interpretation) {
-                    myconsole.red("Error!!", op.fullgrammer, op.define.first, op.horizonal);
+                    myconsole.defineerror("Error!!", op.fullgrammer, op.define.first, op.horizonal);
                 }
 
                 if (interpretation && interpretation.vertical < op.vertical) {
@@ -2697,7 +2805,7 @@ class contexts {
             return acc;
         }, []).sort((l, r) => {
             if (l.horizonal == r.horizonal) {
-                myconsole.red("Violation!", l.horizonal, l.root.horizonal, r.root.horizonal);
+                myconsole.implmenterror("Violation!", l.horizonal, l.root.horizonal, r.root.horizonal);
             }
             return l.horizonal - r.horizonal;
         });
@@ -2714,14 +2822,13 @@ class contexts {
             this.minstruct(context, program, completes, start);
         }
         if (completes.includes(false)) {
-            myconsole.red("Incomprehensible operators exist");
             const fails = completes.reduce((acc, cur, idx) => {
                 if (!cur) {
                     acc.push(start + idx);
                 }
                 return acc;
             }, []);
-            myconsole.red(fails);
+            myconsole.defineerror("Incomprehensible operators exist", fails);
         }
 
         return program;
@@ -2750,14 +2857,14 @@ class contexts {
             this.minstruct(context, program, completes, start);
         }
         if (completes.includes(false)) {
-            myconsole.red("Incomprehensible operators exist");
+            
             const fails = completes.reduce((acc, cur, idx) => {
                 if (!cur) {
                     acc.push(start + idx);
                 }
                 return acc;
             }, []);
-            myconsole.red(fails);
+            myconsole.defineerror("Incomprehensible operators exist", fails);
         }
 
         return program;
@@ -2781,8 +2888,7 @@ class contexts {
         }, []);
         nodes.map((v, idx, self) => {
             if (self.slice(idx + 1).find(n => v.horizonal == n.horizonal)) {
-                myconsole.red("Duplication interpretation");
-                console.log(v.horizonal);
+                myconsole.implmenterror("Duplication interpretation", v.horizonal);
             }
         });
         return trees;
