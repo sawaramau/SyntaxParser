@@ -159,11 +159,11 @@ class config {
             [
                 // 返り値系
                 new opdefine(
-                    ["return"],
+                    ["return", 1],
                     this.join.order.right,
                     (argv) => {
                         () => {
-                            return undefined;
+                            return argv[0];
                         }
                     },
                     "return", null, 0,
@@ -175,12 +175,14 @@ class config {
                         ]
                     )
                 ),
+            ],
+            [
                 new opdefine(
-                    ["return", 1],
+                    ["return"],
                     this.join.order.right,
                     (argv) => {
                         () => {
-                            return argv[0];
+                            return undefined;
                         }
                     },
                     "return", null, 0,
@@ -215,6 +217,8 @@ class config {
                         ]
                     )
                 ),
+            ],
+            [
                 // 区切り文字
                 new opdefine(
                     [1, ","],
@@ -583,31 +587,6 @@ class config {
                     )
                 ),
             ],
-
-            [
-                new opdefine(
-                    ["(", 1, ")", "=>", "{", 1, "}"],
-                    this.join.order.right,
-                    (argv) => {
-                        return (args) => {
-                            return argv[1];
-                        };
-                    },
-                    "{}", null, 0,
-                    new typeset(
-                        [],
-                        [this.types.func],
-                        [
-                            [this.types.control, this.types.punctuation],
-                            [this.types.parallel],
-                        ],
-                    )
-                ),
-
-
-            ],
-
-
             [
                 // operator
                 // brackets
@@ -672,7 +651,28 @@ class config {
                     )
                 ),
             ],
+            [
+                new opdefine(
+                    ["(", 1, ")", "=>", "{", 1, "}"],
+                    this.join.order.right,
+                    (argv) => {
+                        return (args) => {
+                            return argv[1];
+                        };
+                    },
+                    "{}", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.func],
+                        [
+                            [this.types.control, this.types.punctuation],
+                            [this.types.parallel],
+                        ],
+                    )
+                ),
 
+
+            ],
             [
                 // values
                 // brackets
@@ -1011,18 +1011,26 @@ class myconsole {
         } else if ((typeof elm) == "number") {
             return '\u001b[32m' + elm + '\u001b[0m';
         } else if (elm instanceof Array) {
-            text += myconsole.array(elm);
+            return myconsole.array(elm);
         } else if (elm instanceof Object) {
-            text += myconsole.object(elm);
+            return myconsole.object(elm);
         }
         return undefined;
     }
     static array(arr) {
-        let text = "[";
+        let text = "[ ";
         const len = arr.length;
         let i = 0;
         for (let elm of arr) {
-            const tmp = myconsole.standard(elm);
+            const str = (() => {
+                if ((typeof elm) == "string") {
+                    return '\u001b[32m' + "'" + elm + "'" + '\u001b[0m';
+                } else if ((typeof elm) == "number") {
+                    return '\u001b[33m' + elm + '\u001b[0m';
+                }
+                return elm;
+            })();
+            const tmp = myconsole.standard(str);
             if (tmp !== undefined) {
                 text += tmp;
             }
@@ -1031,22 +1039,37 @@ class myconsole {
                 text += ", ";
             }
         }
-        text += "]";
+        text += " ]";
         return text;
     }
     static object(obj) {
-        let text = "{";
+        let text = "{ ";
         const len = obj.length;
         let i = 0;
         for (let key of Object.keys(obj)) {
-            
-            let tmp = myconsole.standard(key);
+            let tmp = (() => {
+                if ((typeof key) == "string") {
+                    return '\u001b[32m' + "'" + key + "'" + '\u001b[0m';
+                } else if ((typeof key) == "number") {
+                    return '\u001b[33m' + key + '\u001b[0m';
+                }
+                return key;
+            })();
+            tmp = myconsole.standard(tmp);
             if (tmp !== undefined) {
                 text += tmp;
             }
             text += " : ";
             const elm = obj[key];
-            tmp = myconsole.standard(elm);
+            tmp = (() => {
+                if ((typeof elm) == "string") {
+                    return '\u001b[32m' + "'" + elm + "'" + '\u001b[0m';
+                } else if ((typeof elm) == "number") {
+                    return '\u001b[33m' + elm + '\u001b[0m';
+                }
+                return elm;
+            })();
+            tmp = myconsole.standard(tmp);
             if (tmp !== undefined) {
                 text += tmp;
             }
@@ -1055,7 +1078,7 @@ class myconsole {
                 text += ", ";
             }
         }
-        text += "}";
+        text += " }";
         return text;
     }
     static log(arr) {
@@ -1072,9 +1095,15 @@ class myconsole {
 
     static implmenterror() {
         const array = ["Maybe implematation error\r\n"];
+        const reg = /(.*)([\r\n\n])$/;
         for (let i = 0; i < arguments.length; i++) {
             if ((typeof arguments[i]) == "string") {
-                array.push('\u001b[33m' + arguments[i] + '\u001b[0m');
+                const m = arguments[i].match(reg);
+                if (m) {
+                    array.push('\u001b[33m' + m[1] + '\u001b[0m' + m[2]);
+                } else {
+                    array.push('\u001b[33m' + arguments[i] + '\u001b[0m');
+                }
             } else {
                 array.push(arguments[i]);
             }
@@ -1084,10 +1113,16 @@ class myconsole {
 
 
     static defineerror() {
-        const array = []
+        const array = [];
+        const reg = /(.*)([\r\n\n])$/;
         for (let i = 0; i < arguments.length; i++) {
             if ((typeof arguments[i]) == "string") {
-                array.push('\u001b[31m' + arguments[i] + '\u001b[0m');
+                const m = arguments[i].match(reg);
+                if (m) {
+                    array.push('\u001b[31m' + m[1] + '\u001b[0m' + m[2]);
+                } else {
+                    array.push('\u001b[31m' + arguments[i] + '\u001b[0m');
+                }
             } else {
                 array.push(arguments[i]);
             }
@@ -1098,9 +1133,15 @@ class myconsole {
     
     static red() {
         const array = []
+        const reg = /(.*)([\r\n\n])$/;
         for (let i = 0; i < arguments.length; i++) {
             if ((typeof arguments[i]) == "string") {
-                array.push('\u001b[31m' + arguments[i] + '\u001b[0m');
+                const m = arguments[i].match(reg);
+                if (m) {
+                    array.push('\u001b[31m' + m[1] + '\u001b[0m' + m[2]);
+                } else {
+                    array.push('\u001b[31m' + arguments[i] + '\u001b[0m');
+                }
             } else {
                 array.push(arguments[i]);
             }
@@ -1110,9 +1151,15 @@ class myconsole {
 
     static green() {
         const array = []
+        const reg = /(.*)([\r\n\n])$/;
         for (let i = 0; i < arguments.length; i++) {
             if ((typeof arguments[i]) == "string") {
-                array.push('\u001b[32m' + arguments[i] + '\u001b[0m');
+                const m = arguments[i].match(reg);
+                if (m) {
+                    array.push('\u001b[33m' + m[1] + '\u001b[0m' + m[2]);
+                } else {
+                    array.push('\u001b[33m' + arguments[i] + '\u001b[0m');
+                }
             } else {
                 array.push(arguments[i]);
             }
@@ -1579,7 +1626,7 @@ class opdefine {
     get nexter() {
         if (this._nexter !== undefined) {
             if (this._nexter == null) {
-                return;
+                return undefined;
             }
             return this._nexter;
         }
@@ -1605,15 +1652,31 @@ class opdefine {
         const first = grammer.find(elm => (typeof elm) != "number");
         if (first === undefined) {
             this._nexter = null;
-            return;
+            return undefined;
         }
 
         this._nexter = new opdefine(grammer, this.order, () => {
             // interpretation側で解決
-        }, this.groupid, { parent: this }, this.root + 1, this._inouts.shift(this.left));
+        }, this.groupid, null, this.root + 1, this._inouts.shift(this.left));
 
         this._nexter.priority = this.priority;
+        this._nexter.parent = this;
         return this._nexter;
+    }
+    get parent() {
+        return this._parent;
+    }
+    set parent(val) {
+        this._parent = val;
+    }
+    get starter() {
+        let current = this;
+        while (1) {
+            if (!current.parent) {
+                return current;
+            }
+            current = current.parent;
+        }
     }
 
 }
@@ -3155,6 +3218,112 @@ class contexts {
 
 // 命令の定義集を読み込んで読み込みの補助などを少しするクラス
 class ops {
+    // 定義の妥当性を考える関数
+    validation(defs) {
+        if (defs === undefined) {
+            defs = this.constant;
+        }
+        // 不当な定義
+        // 1. 同一の識別子で自身より子要素の多い演算子が高優先度に設定されている場合
+        // 2. ??
+        const firsts = {};
+        for (let def of defs) {
+            if (!(def._grammer instanceof Array)) {
+                // 現状、検討するのは予約語のみ
+                continue;
+            }
+            const first = def.first;
+            if (!(first in firsts)) {
+                firsts[first] = [];
+            }
+            firsts[first].push(def);
+        }
+        for (let key of Object.keys(firsts)) {
+            const first = firsts[key];
+            first.sort((l, r) => {
+                let lparent = l;
+                let rparent = r;
+                const priority = l.priority - r.priority; // 昇順
+                const right = r.right - l.right; // 降順
+                if (r.nexter || l.nexter) {
+                    // 囲み系演算子定義は終端まで行ってから全体を通して評価するので、ここではスルー
+                    return priority;
+                }
+                while (1) {
+                    if (!(lparent.parent && rparent.parent)) {
+                        if (lparent.parent || rparent.parent) {
+                            myconsole.implmenterror("Different depth");
+                        }
+                        break;
+                    }
+                    const left = rparent.left - lparent.left;
+                    if (left) {
+                        // 囲み演算子の中身が異なるならば、完全に区別のつく全く異なる演算子なのでOK
+                        return left;
+                    }
+                    lparent = lparent.parent;
+                    rparent = rparent.parent;
+                }
+                const left = rparent.left - lparent.left; // 降順
+                const terms = left + right; // 降順
+                // 演算子の全体の項数が一致する
+                if (terms == 0) {
+                    if (left) {
+                        // 左右の項数の構成が異なるとき、
+                        if (priority) {
+                            // 優先度が異なれば区別できる
+                            // ex. ++ の前置、後置
+                            return priority;
+                        }
+                        if (l.order != r.order) {
+                            // 結合順序が異なるときは区別できるようになりたい
+                            return priority;
+                        } else {
+                            // 左右の項構成は異なるが、優先度も結合順序も同じとき、区別できないと思う
+                            myconsole.defineerror("They can not be distinguished", lparent.grammer, rparent.grammer);
+                            return priority;
+                        }
+                    } else {
+                        // 左右の項の構成が同じとき、
+                        if (l.order != r.order) {
+                            // 結合順序が異なれば区別できるようになりたい
+                            return priority;
+                        }
+                        if (!priority) {
+                            // 優先度が同一ならば、見分けようがない
+                            myconsole.defineerror("They can not be distinguished", lparent.grammer, rparent.grammer);
+                            return priority;    
+                        }
+                        // 優先度の低い方は必ず採用されない
+                        if (priority > 0) {
+                            myconsole.defineerror(
+                                "Because of same configuration operator, this operator can not be used.\n", rparent.grammer, "\n",
+                                "Priority:", lparent.priority, rparent.priority
+                            );
+                        } else {
+                            myconsole.defineerror(
+                                "Because of same configuration operator, this operator can not be used.\n", lparent.grammer, "\n",
+                                "Priority:", lparent.priority, rparent.priority
+                            );
+                        }
+                        return priority;
+                    }
+                } else if (terms * priority > 0) {
+                    // 全体の項数が増えるとき、増える側の優先度が低くければOK
+                    return priority;
+                } else {
+                    myconsole.defineerror("Priority setting error", priority, left, right, key);
+                    return priority;
+                }
+                myconsole.implmenterror("Not considering pattern");
+            });
+            const nexters = first.filter(v => v.nexter !== undefined).map(v => v.nexter);
+            //if (nexters.length) {
+            this.validation(nexters);
+            //}
+        }
+    }
+
     get constant() {
         if (this._all === undefined) {
             this._all = this.opdefines.reduce((acc, cur) => {
@@ -3186,17 +3355,17 @@ class ops {
         //    [opdefine],               high
         // ];
         this.opdefines = opdefines;
-        //this.oporder = {};
-        //this.mostoffset = {};
         let priority = 0;
 
         for (let ops of opdefines) {
             for (let opdefine of ops) {
-                opdefine.priority = priority;
+                if (opdefine.priority === undefined) {
+                    opdefine.priority = priority;
+                }
             }
             priority++;
         }
-        this.offset = priority;
+        this.validation();
     }
 }
 
