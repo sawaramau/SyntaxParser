@@ -6,7 +6,6 @@ class config {
         this.calculator = calculator;
         this.punctuation = (argv) => {
             for (let arg of argv) {
-                //console.log(arg.first, arg.horizonal, arg.type, this.types.ret);
                 if (arg.type == this.types.ret) {
                     return arg.value;
                 } else if (arg.type == this.types.control) {
@@ -110,56 +109,42 @@ class config {
                         ],
                     )
                 ),
-
-            ],
-            [
-                // same priority group
                 new opdefine(
-                    ["if", "(", 1, ")", "{", 1, "}"],
-                    this.join.order.right,
+                    [1, "\n"],
+                    this.join.order.left,
                     (argv) => {
-                        
-                        if (argv[0].value) {
-                            return argv[1];
-                        }
-                        return undefined;
-                    
+                        return this.punctuation(argv);
                     },
-                    "if", null, 0,
+                    "punctuation", null, 0,
                     new typeset(
-                        [],
-                        [this.types.control],
                         [
-                            [this.types.control, this.types.punctuation],
-                            []
-                        ]
+                        ],
+                        [
+                            this.types.punctuation
+                        ],
+                        [
+                        ],
+                        [
+                        ],
                     )
                 ),
                 new opdefine(
-                    ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
-                    this.join.order.right,
+                    [1, "\r\n"],
+                    this.join.order.left,
                     (argv) => {
-                        () => {
-                            for (argv[0].value; argv[1].value; argv[2].value) {
-                                const r = argv[3].value;
-                                if (argv[3].break) {
-                                    break;
-                                } else if (argv[3].return) {
-                                    return r;
-                                }
-                            }
-                        }
+                        return this.punctuation(argv);
                     },
-                    "for", null, 0,
+                    "punctuation", null, 0,
                     new typeset(
-                        [],
-                        [this.types.control],
                         [
-                            [this.types.control, this.types.punctuation],
-                            [this.types.control, this.types.punctuation],
-                            [this.types.control, this.types.punctuation],
-                            [],
-                        ]
+                        ],
+                        [
+                            this.types.punctuation
+                        ],
+                        [
+                        ],
+                        [
+                        ],
                     )
                 ),
             ],
@@ -245,29 +230,58 @@ class config {
                     )
                 ),
             ],
-
             [
-                // 条件演算
+                // same priority group
                 new opdefine(
-                    [1, "?", 1, ":", 1, ":", 1, ":", 1],
+                    ["if", "(", 1, ")", "{", 1, "}"],
                     this.join.order.right,
                     (argv) => {
-                        return argv[0].value ? argv[1].value : argv[2].value;
+
+                        if (argv[0].value) {
+                            return argv[1];
+                        }
+                        return undefined;
+
                     },
-                    "?", null, 0,
+                    "if", null, 0,
                     new typeset(
                         [],
-                        [this.types.delegate],
+                        [this.types.control],
                         [
-                            [this.types.control],
                             [this.types.control, this.types.punctuation],
-                        ],
-                        [(args) => {
-                            args[0].value ? args[1].type : args[2].type;
-                        }]
+                            []
+                        ]
+                    )
+                ),
+                new opdefine(
+                    ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
+                    this.join.order.right,
+                    (argv) => {
+                        //() => {
+                        for (argv[0].value; argv[1].value; argv[2].value) {
+                            const r = argv[3].value;
+                            if (argv[3].break) {
+                                break;
+                            } else if (argv[3].return) {
+                                return r;
+                            }
+                        }
+                        //}
+                    },
+                    "for", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.control],
+                        [
+                            [this.types.control, this.types.punctuation],
+                            [this.types.control, this.types.punctuation],
+                            [this.types.control, this.types.punctuation],
+                            [],
+                        ]
                     )
                 ),
             ],
+
             [
                 // 条件演算
                 new opdefine(
@@ -294,7 +308,7 @@ class config {
             [
                 // アクセサ
                 new opdefine(
-                    [1, "?", 1],
+                    [1, "???", 1],
                     this.join.order.right,
                     (argv) => {
                         return null;
@@ -643,12 +657,12 @@ class config {
                         ],
                         [
                             (argv) => {
-                                return argv[0].value(argv[1].value)//.type;
+                                return argv[0].value(argv[1].value).type;
                             }
                         ],
                     )
                 ),
-                
+
                 new opdefine(
                     [1, "[", 1, "]"],
                     this.join.order.left,
@@ -945,30 +959,7 @@ class config {
                 ),
             ],
             [
-                // 空白文字等
-                new opdefine(
-                    (val) => {
-                        const varreg = /^[\t ]+$/;
-                        if (val.match(varreg)) {
-                            return true;
-                        }
-                        return false;
-                    },
-                    null,
-                    null,
-                    "space", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.blank
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
+                // 改行
                 new opdefine(
                     ["\n"],
                     this.join.order.right,
@@ -991,6 +982,32 @@ class config {
                     this.join.order.right,
                     null,
                     "newline", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [
+                            this.types.blank
+                        ],
+                        [
+                        ],
+                        [
+                        ],
+                    )
+                ),
+            ],
+            [
+                // 空白文字等
+                new opdefine(
+                    (val) => {
+                        const varreg = /^[\t ]+$/;
+                        if (val.match(varreg)) {
+                            return true;
+                        }
+                        return false;
+                    },
+                    null,
+                    null,
+                    "space", null, 0,
                     new typeset(
                         [
                         ],
@@ -1044,6 +1061,12 @@ class myconsole {
             return myconsole.array(elm);
         } else if (elm instanceof Object) {
             return myconsole.object(elm);
+        } else if ((typeof elm) == "boolean") {
+            if (elm) {
+                return '\u001b[32m' + "true" + '\u001b[0m';
+            } else {
+                return '\u001b[32m' + "false" + '\u001b[0m';
+            }
         }
         return undefined;
     }
@@ -1160,7 +1183,7 @@ class myconsole {
         myconsole.log(array);
     }
 
-    
+
     static red() {
         const array = []
         const reg = /(.*)([\r\n\n])$/;
@@ -1431,6 +1454,16 @@ class typeset {
 }
 
 class itemtype {
+    static string(type) {
+        const types = itemtype.types();
+        for (let key of Object.keys(types)) {
+            if (types[key] == type) {
+                return key;
+            }
+        }
+        return undefined;
+    }
+
     static types() {
         let blank = myenum.define(0);
         let control, ret;
@@ -1718,7 +1751,7 @@ class interpretation {
     // offsetは部分的な構文解析時に使用
     constructor(define, parent, offset = 0) {
         if (define === undefined) {
-            myconsole.defineerror("Unexpected define. This is undefined");
+            myconsole.implmenterror("Unexpected define. This is undefined");
         }
 
         this._invalid = false;
@@ -1736,6 +1769,11 @@ class interpretation {
         this._leftblank = [];
         this._rightblank = [];
         this._childblanktrees = []; // 
+        //this._starters;
+    }
+
+    set starter(val) {
+        this._starter = val;
     }
 
     set brothers(val) {
@@ -1769,9 +1807,8 @@ class interpretation {
             if (!parent._parent) {
                 return parent;
             }
-            parent = parent.parent;
+            parent = parent._parent;
         }
-
     }
 
     get root() {
@@ -1797,7 +1834,7 @@ class interpretation {
             }
         }
         myconsole.implmenterror("undefined absolute horizonal access:", this.allnodes.map(v => v.horizonal))
-        myconsole.implmenterror(horizonal, this.horizonal);
+        myconsole.implmenterror(horizonal, this.horizonal, this.first);
         return undefined;
     }
 
@@ -1900,6 +1937,9 @@ class interpretation {
             }
         }
         const right = (() => {
+            if (this._parent) {
+                return [];
+            }
             const right = [];
             for (let child of this._right) {
                 if (child instanceof interpretation) {
@@ -1929,6 +1969,7 @@ class interpretation {
         children.sort((l, r) => {
             if (l.horizonal == r.horizonal) {
                 myconsole.implmenterror("Violation!");
+                myconsole.implmenterror(r.horizonal, l.horizonal, r.root.horizonal, l.root.horizonal);
             }
             return l.horizonal - r.horizonal;
         });
@@ -1945,6 +1986,9 @@ class interpretation {
             //return this.program[child.horizonal - this.offset][child.vertical];
         });
         const right = (() => {
+            if (this._parent) {
+                return [];
+            }
             const right = [];
             for (let child of this._right) {
                 if (child instanceof interpretation) {
@@ -1990,20 +2034,12 @@ class interpretation {
                 for (let node of nexter.childtrees) {
                     right.push(node);
                 }
-                for (let node of nexter._right) {
-                    if (node instanceof interpretation) {
-                        right.push(node);
-                    } else {
-                        //right.push(this.program[node.horizonal - this.offset][node.vertical]);
-                    }
-                }
                 nexter = nexter.nexter;
             }
-            for (let child of this._right) {
-                if (child instanceof interpretation) {
-                    right.push(child);
+            for (let node of this._right) {
+                if (node instanceof interpretation) {
+                    right.push(node);
                 } else {
-                    //right.push(this.program[child.horizonal - this.offset][child.vertical]);
                 }
             }
             return right;
@@ -2182,10 +2218,6 @@ class interpretation {
         this._program = val;
     }
     get program() {
-        if (this._parent) {
-            //return this.parent.program;
-        }
-        //return this._program;
     }
 
     get clone() {
@@ -2220,6 +2252,21 @@ class interpretation {
         }
         return full;
     }
+
+    get terminator() {
+        if (!this._terminator) {
+            let terminator = this;
+            while (1) {
+                if (!terminator.nexter) {
+                    this._terminator = terminator;
+                    break;
+                }
+                terminator = terminator.nexter;
+            }
+        }
+        return this._terminator;
+    }
+
     get nexter() {
         if (!this.define.nexter) {
             return undefined;
@@ -2286,7 +2333,7 @@ class interpretation {
         if (this._invalid) {
             return true;
         }
-        
+
         if (this.nexter) {
             if (this.nexter.invalid) {
                 this.invalid = true;
@@ -2309,7 +2356,7 @@ class interpretation {
             this._left = null;   // left children
             this._childtrees = null; // 
             this._right = null;  // right children
-            this._brothers = null;
+            //this._brothers = null;
             this._leftblank = null;
             this._rightblank = null;
             this._childblanktrees = null; // 
@@ -2322,12 +2369,6 @@ class interpretation {
             return;
         }
         this._tmpparent = val;
-        /*
-        {
-            horizonal: val.horizonal,
-            vertical: val.vertical,
-        };
-        */
     }
     get parent() {
         if (this._parent) {
@@ -2349,8 +2390,10 @@ class interpretation {
         return this.define.left - this._left.length;
     }
     get right() {
-
-        return this.define.right - this._right.length;
+        if (this._parent) {
+            return 0;
+        }
+        return this.terminator.define.right - this._right.length;
     }
 
     get type() {
@@ -2370,6 +2413,9 @@ class interpretation {
             }
 
             val.parent = this;
+            if (this._leftblank.find(v => v.horizonal == val.horizonal)) {
+                myconsole.implmenterror("Already record horzonal", val.horizonal, this.horizonal);
+            }
             this._leftblank.push(val);
         } else if (this.left > 0) {
             if (this.priority > val.priority) {
@@ -2379,6 +2425,9 @@ class interpretation {
                 return false;
             }
             val.parent = this;
+            if (this._left.find(v => v.horizonal == val.horizonal)) {
+                myconsole.implmenterror("Already record horzonal", val.horizonal, this.horizonal);
+            }
             this._left.unshift(val);
             return true;
         }
@@ -2386,6 +2435,9 @@ class interpretation {
     }
     setright(val) {
         if (this.horizonal >= val.horizonal) {
+            return false;
+        }
+        if (this._parent) {
             return false;
         }
         if (val.type == itemtype.types().blank) {
@@ -2397,6 +2449,9 @@ class interpretation {
             }
             val.parent = this;
 
+            if (this._rightblank.find(v => v.horizonal == val.horizonal)) {
+                myconsole.implmenterror("Already record horzonal", val.horizonal, this.horizonal);
+            }
             this._rightblank.unshift(val);
             return true;
         } else if (this.right > 0) {
@@ -2407,6 +2462,9 @@ class interpretation {
                 return false;
             }
             val.parent = this;
+            if (this._right.find(v => v.horizonal == val.horizonal)) {
+                myconsole.implmenterror("Already record horzonal", val.horizonal, this.horizonal);
+            }
             this._right.push(val);
             return true;
         }
@@ -2567,7 +2625,8 @@ class contexts {
                     const clone = def.clone;
                     if (clone._parent) {
                         // 結合子は親と同期する
-                        return clone._parent.nexter;
+                        const c = clone._parent.nexter;
+                        return c;
                     }
                     return clone;
                 })()
@@ -2652,6 +2711,9 @@ class contexts {
             }
             return undefined;
         });
+        if (roots.length == 1) {
+            return roots;
+        }
         let prev;
         const trees = roots.reduce((acc, cur) => {
             const root = cur;
@@ -2817,7 +2879,7 @@ class contexts {
                 const vertical = program[i].length - 1 - j;
                 const op = program[i][vertical];
                 if (!op) {
-                    myconsole.defineerror("undefined code!!");
+                    myconsole.implmenterror("undefined code!!");
                     continue;
                 }
 
@@ -2826,7 +2888,8 @@ class contexts {
                 }
                 const interpretation = interpretations.find(def => def.horizonal == op.horizonal);
                 if (interpretations.length && !interpretation) {
-                    myconsole.defineerror("Error!!", op.fullgrammer, op.define.first, op.horizonal);
+                    myconsole.implmenterror("Error!!", op.fullgrammer, op.define.first, op.horizonal, itemtype.string(op.type));
+                    myconsole.implmenterror(interpretations.map(v => v.horizonal));
                 }
 
                 if (interpretation && interpretation.vertical < op.vertical) {
@@ -2841,7 +2904,7 @@ class contexts {
                     if (nexter.vertical < op.vertical) {
                         op.invalid = true;
                     } else if (nexter.vertical == op.vertical) {
-                        nexter = nexter.nexter;
+                        nexter = op.nexter;
                         break;
                     }
                 } else if (!nexter && op.nexter && !op.invalid) {
@@ -2921,7 +2984,9 @@ class contexts {
                 }
                 return acc;
             }, []);
-            myconsole.defineerror("Incomprehensible operators exist", fails);
+            myconsole.implmenterror("Incomprehensible operators exist", fails);
+            myconsole.implmenterror("Range:", start, "-", end - 1);
+            myconsole.implmenterror("Start", this.program[start][0].first, "End", this.program[end - 1][0].first);
         }
 
         return program;
@@ -2950,14 +3015,18 @@ class contexts {
             this.minstruct(context, program, completes, start);
         }
         if (completes.includes(false)) {
-            
+
             const fails = completes.reduce((acc, cur, idx) => {
                 if (!cur) {
                     acc.push(start + idx);
                 }
                 return acc;
             }, []);
-            myconsole.defineerror("Incomprehensible operators exist", fails);
+            myconsole.implmenterror("Incomprehensible operators exist", fails);
+            const ops = fails.map(v => this.program[v][0]);
+            myconsole.implmenterror("Operator", ops.map(v => [v.first, v.left, v.right, v.finished]));
+            myconsole.implmenterror("Range:", start, "-", end - 1);
+            myconsole.implmenterror("Start", this.program[start][0].first, "End", this.program[end - 1][0].first);
         }
 
         return program;
@@ -2980,8 +3049,10 @@ class contexts {
             return acc;
         }, []);
         nodes.map((v, idx, self) => {
-            if (self.slice(idx + 1).find(n => v.horizonal == n.horizonal)) {
-                myconsole.implmenterror("Duplication interpretation", v.horizonal);
+            const n = self.slice(idx + 1).find(n => v.horizonal == n.horizonal);
+            if (n) {
+                myconsole.implmenterror("Duplication interpretation", v.horizonal, n.horizonal, itemtype.string(v.type), itemtype.string(n.type));
+                myconsole.implmenterror(n.parent.horizonal, v.parent.horizonal, itemtype.string(v.parent.type), itemtype.string(n.parent.type));
             }
         });
         return trees;
@@ -2992,7 +3063,6 @@ class contexts {
         //              old -----------------------------------> new
         //  start : 実際のプログラム上(this.program)での検索位置
         //  completes : あるindexの演算子が解釈可能な定義を発見済みである事を示す配列
-
         const search = (self, order) => {
             if (completes[self.horizonal - start]) {
                 return;
@@ -3004,14 +3074,16 @@ class contexts {
             } else if (!self.finished) {
                 self.invalid = true;
                 return;
+            } else if (self != self.starter) {
+                return;
             }
 
             // self: 1つの解釈
             // order: 探索方向。true: 左方向 false: 右方向
             const step = order ? -1 : 1;
             // 解釈が持つindex情報を今の範囲内の値に置換
-            let index = self.horizonal - start;
-            let i = 1;
+            const index = self.horizonal - start;
+            let i = 1 + (step == 1 ? self.terminator.horizonal - self.horizonal : 0);
             while (1) {
                 // 隣接要素のindexを計算
                 const j = index + i * step;
@@ -3037,7 +3109,6 @@ class contexts {
                     // 隣接要素の最大優先度が自身より低いとき、その要素を超える方法はない。
                     break;
                 }
-
                 // 既に完了しているか確認
                 let complete = ((step == -1) && !self.left || (step == 1) && !self.right);
                 let blank = false;
@@ -3056,11 +3127,11 @@ class contexts {
                     } else if ((neighbor.left) || (neighbor.right)) {
                         // 隣接要素が子を揃えられていないならば、その隣接要素は地雷なので無視
                         continue;
-                    } else if (neighbor.parent && (neighbor.parent.horizonal != self.horizonal)) {
+                    } else if (neighbor.parent && (neighbor.root.horizonal != self.horizonal)) {
                         // 隣接要素が親を持ち、その親のindexが自身と異なるとき
                         // 次の探索範囲は少なくともその親以降とする
-                        i = Math.abs(neighbor.parent.horizonal - self.horizonal) - 1 > i ?
-                            Math.abs(neighbor.parent.horizonal - self.horizonal) - 1 : i;
+                        i = Math.abs(neighbor.root.horizonal - self.horizonal) - 1 > i ?
+                            Math.abs(neighbor.root.horizonal - self.horizonal) - 1 : i;
 
                         break;
                     } else {
@@ -3071,7 +3142,7 @@ class contexts {
                             self.setright(neighbor);
                         }
                         blank = (neighbor.type == itemtype.types().blank);
-                        if (neighbor.nexter && neighbor.nexter.horizonal !== undefined) {
+                        if (neighbor.nexter) {
                             i = Math.abs(neighbor.nexter.horizonal - self.horizonal) > i ?
                                 Math.abs(neighbor.nexter.horizonal - self.horizonal) : i;
                         }
@@ -3085,7 +3156,6 @@ class contexts {
                 if (!blank && complete) {
                     break;
                 }
-
 
             }
         };
@@ -3322,7 +3392,7 @@ class ops {
                         if (!priority) {
                             // 優先度が同一ならば、見分けようがない
                             myconsole.defineerror("They can not be distinguished", lparent.grammer, rparent.grammer);
-                            return priority;    
+                            return priority;
                         }
                         // 優先度の低い方は必ず採用されない
                         if (priority > 0) {
