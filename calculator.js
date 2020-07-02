@@ -2213,7 +2213,6 @@ class interpretation {
         bracket.open = roots.left.sort((l, r) => l.horizonal - r.horizonal).find((op) => op.nexter);
         bracket.close = roots.right.sort((l, r) => r.horizonal - l.horizonal).find((op) => op._parent);
 
-
         for (let def of this.context) {
             if (!def) {
                 others.push(undefined);
@@ -2808,7 +2807,6 @@ class contexts {
                     int.horizonal = other.horizonal;
                     int.offset = other.offset;
                     int.root = def.root;
-                    int.program = other.program;
                     interpretations.push(int);
                 }
                 //if (interpretations.length) {
@@ -2870,7 +2868,7 @@ class contexts {
                     }
                 }
             }
-            while (left) {
+            while (left > 0) {
                 if (!lefttree) {
                     break;
                 }
@@ -2885,7 +2883,7 @@ class contexts {
                 return false;
             }
             let righttree = interpretation.root.righttree;
-            while (right) {
+            while (right > 0) {
                 if (!righttree) {
                     break;
                 }
@@ -2899,7 +2897,7 @@ class contexts {
             if (right > 1) {
                 return false;
             }
-            if (left + right < 1) {
+            if (left == 0 && right == 0) {
                 return true;
             }
             if (left + right == 1 && interpretation.priority <= interpretation.root.priority) {
@@ -3047,7 +3045,8 @@ class contexts {
             }, []);
             myconsole.implmenterror("Incomprehensible operators exist", fails);
             myconsole.implmenterror("Range:", start, "-", end - 1);
-            myconsole.implmenterror("Start", this.program[start][0].first, "End", this.program[end - 1][0].first);
+            const f = this.program[start].find(v => !v.invalid);
+            myconsole.implmenterror("Start", f.fullgrammer, "End", this.program[end - 1][0].first);
         }
 
         return program;
@@ -3087,7 +3086,8 @@ class contexts {
             const ops = fails.map(v => this.program[v][0]);
             myconsole.implmenterror("Operator", ops.map(v => [v.first, v.left, v.right, v.finished]));
             myconsole.implmenterror("Range:", start, "-", end - 1);
-            myconsole.implmenterror("Start", this.program[start][0].first, "End", this.program[end - 1][0].first);
+            const f = this.program[start].find(v => !v.invalid);
+            myconsole.implmenterror("Start", f.fullgrammer, "End", this.program[end - 1][0].first);
         }
 
         return program;
@@ -3173,8 +3173,10 @@ class contexts {
                 // 既に完了しているか確認
                 let complete = ((step == -1) && !self.left || (step == 1) && !self.right);
                 let blank = false;
+
                 for (let neighbor of neighbors) {
                     // より優先度の高い子を探す
+                    blank = (neighbor.type == itemtype.types().blank);
                     if (self.priority > neighbor.priority) {
                         // 自身の優先度より低い要素は無視。これ以降も総じて優先度が低いのでbreak
                         break;
@@ -3202,7 +3204,6 @@ class contexts {
                         } else {
                             self.setright(neighbor);
                         }
-                        blank = (neighbor.type == itemtype.types().blank);
                         if (neighbor.nexter) {
                             i = Math.abs(neighbor.nexter.horizonal - self.horizonal) > i ?
                                 Math.abs(neighbor.nexter.horizonal - self.horizonal) : i;
