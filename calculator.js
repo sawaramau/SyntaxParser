@@ -228,15 +228,18 @@ class config {
                 ),
             ],
             [
-                // same priority group
                 new opdefine(
-                    ["if", "(", 1, ")", "{", 1, "}"],
-                    this.join.order.right,
-                    (argv) => {
-
-                        if (argv[0].value) {
-                            return argv[1].value;
+                    [1, "else", "if", "(", 1, ")", "{", 1, "}"],
+                    this.join.order.left,
+                    (argv, meta) => {
+                        const val = argv[0].value;
+                        if (argv[0].meta.success) {
+                            return val;
+                        } else if (argv[1].value) {
+                            meta.success = true;
+                            return argv[2].value;
                         }
+                        meta.success = false;
                         return undefined;
 
                     },
@@ -250,6 +253,55 @@ class config {
                         ]
                     )
                 ),
+                new opdefine(
+                    [1, "else", "{", 1, "}"],
+                    this.join.order.left,
+                    (argv) => {
+                        const val = argv[0].value;
+                        if (argv[0].meta.success) {
+                            return val;
+                        } else {
+                            return argv[1].value;
+                        }
+                    },
+                    "if", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.control],
+                        [
+                            [this.types.control],
+                            []
+                        ]
+                    )
+                ),
+
+            ],
+            [
+                // same priority group
+                new opdefine(
+                    ["if", "(", 1, ")", "{", 1, "}"],
+                    this.join.order.left,
+                    (argv, meta) => {
+
+                        if (argv[0].value) {
+                            meta.success = true;
+                            return argv[1].value;
+                        }
+                        meta.success = false;
+                        return undefined;
+
+                    },
+                    "if", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.control],
+                        [
+                            [this.types.control],
+                            []
+                        ]
+                    )
+                ),
+
                 new opdefine(
                     ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
                     this.join.order.right,
@@ -2281,8 +2333,15 @@ class interpretation {
         return this._nexter;
     }
 
+    get meta() {
+        if (this._meta === undefined) {
+            this._meta = {};
+        }
+        return this._meta;
+    }
+
     get value() {
-        return this.define.formula(this.args);
+        return this.define.formula(this.args, this.meta);
     }
     get index() {
         return this.horizonal - this.offset;
