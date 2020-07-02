@@ -8,15 +8,11 @@ class config {
             for (let arg of argv) {
                 if (arg.type == this.types.ret) {
                     return arg.value;
-                } else if (arg.type == this.types.control) {
-                    if (arg.value !== undefined) {
-                        if (arg.value.type == this.types.ret) {
-                            return arg.value.value;
-                        }
-                    }
+                } else {
+                    arg.value;
                 }
-                arg.value;
             }
+            // return のない制御文の返り値は未定義
             return undefined;
         };
 
@@ -41,7 +37,7 @@ class config {
                         [
                         ],
                         [
-                            this.types.punctuation
+                            this.types.control
                         ],
                         [
                         ],
@@ -60,7 +56,7 @@ class config {
                         [
                         ],
                         [
-                            this.types.punctuation
+                            this.types.control
                         ],
                         [
                         ],
@@ -80,7 +76,7 @@ class config {
                         [
                         ],
                         [
-                            this.types.punctuation
+                            this.types.control
                         ],
                         [
                         ],
@@ -101,7 +97,7 @@ class config {
                         [
                         ],
                         [
-                            this.types.punctuation
+                            this.types.control
                         ],
                         [
                         ],
@@ -120,7 +116,7 @@ class config {
                         [
                         ],
                         [
-                            this.types.punctuation
+                            this.types.control
                         ],
                         [
                         ],
@@ -139,7 +135,7 @@ class config {
                         [
                         ],
                         [
-                            this.types.punctuation
+                            this.types.control
                         ],
                         [
                         ],
@@ -155,6 +151,7 @@ class config {
                     ["return", 1],
                     this.join.order.right,
                     (argv) => {
+                        // 戻り値は型情報も含めて戻らないといけない
                         return argv[0];
                     },
                     "return", null, 0,
@@ -238,7 +235,7 @@ class config {
                     (argv) => {
 
                         if (argv[0].value) {
-                            return argv[1];
+                            return argv[1].value;
                         }
                         return undefined;
 
@@ -248,7 +245,7 @@ class config {
                         [],
                         [this.types.control],
                         [
-                            [this.types.control, this.types.punctuation],
+                            [this.types.control],
                             []
                         ]
                     )
@@ -273,9 +270,9 @@ class config {
                         [],
                         [this.types.control],
                         [
-                            [this.types.control, this.types.punctuation],
-                            [this.types.control, this.types.punctuation],
-                            [this.types.control, this.types.punctuation],
+                            [this.types.control],
+                            [this.types.control],
+                            [this.types.control],
                             [],
                         ]
                     )
@@ -296,7 +293,7 @@ class config {
                         [this.types.delegate],
                         [
                             [this.types.control],
-                            [this.types.control, this.types.punctuation],
+                            [this.types.control],
                         ],
                         [(args) => {
                             args[0].value ? args[1].type : args[2].type;
@@ -624,7 +621,7 @@ class config {
                         [],
                         [this.types.func],
                         [
-                            [this.types.control, this.types.punctuation],
+                            [this.types.control],
                             [this.types.parallel],
                         ],
                     )
@@ -643,6 +640,9 @@ class config {
                         //if (argv[1].op != ",") {
                         //    return argv[0].value([argv[1]]);
                         //}
+                        if (argv[0].value(argv[1].value) === undefined) {
+                            return undefined;
+                        }
                         return argv[0].value(argv[1].value).value;
                     },
                     "()", null, 0,
@@ -652,11 +652,14 @@ class config {
                         ],
                         [this.types.delegate],
                         [
-                            [this.types.control, this.types.punctuation],
-                            [this.types.control, this.types.punctuation],
+                            [this.types.control],
+                            [this.types.control],
                         ],
                         [
                             (argv) => {
+                                if (argv[0].value(argv[1].value) === undefined) {
+                                    return this.types.undef;
+                                }
                                 return argv[0].value(argv[1].value).type;
                             }
                         ],
@@ -687,8 +690,8 @@ class config {
                         ],
                         [this.types.delegate],
                         [
-                            [this.types.control, this.types.punctuation],
-                            [this.types.control, this.types.punctuation],
+                            [this.types.control],
+                            [this.types.control],
                         ],
                         [
                             (argv) => {
@@ -716,7 +719,7 @@ class config {
                         ],
                         [this.types.through],
                         [
-                            [this.types.control, this.types.punctuation],
+                            [this.types.control],
                         ]
                     )
                 ),
@@ -735,7 +738,7 @@ class config {
                         ],
                         [this.types.array],
                         [
-                            [this.types.control, this.types.punctuation],
+                            [this.types.control],
                         ],
                         [
                         ],
@@ -754,7 +757,7 @@ class config {
                         ],
                         [this.types.object],
                         [
-                            [this.types.control, this.types.punctuation],
+                            [this.types.control],
                         ],
                         [
                         ],
@@ -1385,7 +1388,7 @@ class typeset {
         } else if (this._outputs.length == 1) {
             if (
                 this._outputs[0] != this.types.ref
-                && this._outputs[0] != this.types.punctuation
+                && this._outputs[0] != this.types.control
                 && this._outputs[0] != this.types.delegate
                 && this._outputs[0] != this.types.through
             ) {
@@ -1393,11 +1396,11 @@ class typeset {
             } else if (node && !node.left && !node.right && !node._parent) {
                 if (this._outputs[0] == this.types.delegate) {
                     return this._delegates[0](node.args);
-                } else if (this._outputs[0] == this.types.punctuation) {
-                    if (node.value) {
+                } else if (this._outputs[0] == this.types.control) {
+                    if (node.value instanceof interpretation) {
                         return this.types.ret;
                     } else {
-                        return this.types.undef;
+                        return this.types.control;
                     }
                 } else if (this._outputs[0] == this.types.through) {
                     if (node.args.length) {
@@ -1418,11 +1421,11 @@ class typeset {
                 if (this.checkinput(this.inputs[i], node.args)) {
                     if (this._outputs[i] == this.types.delegate) {
                         return this._delegates[dele](node.args);
-                    } else if (this._outputs[i] == this.types.punctuation) {
-                        if (node.value) {
+                    } else if (this._outputs[i] == this.types.control) {
+                        if (node.value instanceof interpretation) {
                             return this.types.ret;
                         } else {
-                            return this.types.undef;
+                            return this.types.control;
                         }
                     } else if (this._outputs[i] == this.types.through) {
                         if (node.args.length) {
@@ -1467,13 +1470,13 @@ class itemtype {
     static types() {
         let blank = myenum.define(0);
         let control, ret;
-        let number, string, bool, func, ref, array, object, punctuation, through, delegate, parallel, notunavailable;
+        let number, string, bool, func, ref, array, object, through, delegate, parallel, notunavailable;
         let unsettled;
         let undef;
 
         const e = new myenum({
             blank,
-            control,
+            control,    // 句読点、if、forなどの制御構文用
             bool,
             number,
             string,
@@ -1481,7 +1484,6 @@ class itemtype {
             ref,        // 参照を保持する型（変数）
             array,
             object,
-            punctuation,    // 句読点
             ret,            // return
             through,        // 第1引数の型と同じ扱いとする特殊型
             delegate,       // 型決定論を解釈側に丸投げする
@@ -3495,7 +3497,7 @@ class calculator {
 
     return() {
         const result = this.result.dependency();
-        if (result[0].type == itemtype.types().ret || result[0].type == itemtype.types().punctuation) {
+        if (result[0].type == itemtype.types().ret) {
             return result[0].value;
         }
         return new interpretation(this.config.ops.undefined);

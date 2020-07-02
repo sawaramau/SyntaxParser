@@ -1,9 +1,9 @@
 const Calc = require("./calculator.js");
 //const text = "return ((1)=>{ if(2){return 3;}})(1)"; // if true
 const text = 'if (1){return 1} \n return 3'; // if true
-const text2 = 'return ((1)=>{1+1\n if (0) {return 5}; return 2})(1)'; // if false
-const text3 = 'return ((1)=>{if(1){ return 5;}; return 3;})(1)'; // no return
-const text4 = 'return ((1)=>{1+1; if (1) { if (1) { if (1) {return 3}; return 2}; return 5 }; return 2;})(1);'; // if -> if -> if
+const text2 = 'return ((1)=>{1; if (0) {return 5;};  return 2;})(1)'; // if false
+const text3 = 'return ((1)=>{34; if(1){ return 5;}; return 3;})(1)'; // no return
+const text4 = 'return ((1)=>{ if (1) {1; if (1) { if (1) {return  3; }; return 1; }; return 5; }; return 2; }) (1);'; // if -> if -> if
 //const text4 = '1?2:3'; // if -> if -> if
 const calc = new Calc.calculator(text);
 const calc2 = new Calc.calculator(text2);
