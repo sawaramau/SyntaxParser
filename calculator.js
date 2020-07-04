@@ -233,10 +233,10 @@ class config {
                     this.join.order.left,
                     (argv, meta) => {
                         const val = argv[0].value;
+                        meta.success = true;
                         if (argv[0].meta.success) {
                             return val;
                         } else if (argv[1].value) {
-                            meta.success = true;
                             return argv[2].value;
                         }
                         meta.success = false;
@@ -261,6 +261,29 @@ class config {
                         if (argv[0].meta.success) {
                             return val;
                         } else {
+                            return argv[1].value;
+                        }
+                    },
+                    "if", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.control],
+                        [
+                            [this.types.control],
+                            []
+                        ]
+                    )
+                ),
+                new opdefine(
+                    [1, "final", "{", 1, "}"],
+                    this.join.order.left,
+                    (argv) => {
+                        const val = argv[0].value;
+                        const type = argv[0].type;
+                        if (argv[0].meta.success) {
+                            if (type == this.types.ret) {
+                                return val;
+                            }
                             return argv[1].value;
                         }
                     },
@@ -1060,7 +1083,7 @@ class config {
                         }
                         return false;
                     },
-                    null,
+                    this.join.order.right,
                     null,
                     "space", null, 0,
                     new typeset(
@@ -2197,7 +2220,6 @@ class interpretation {
         const others = [];
         const roots = this.roots;
         const blank = this.type == itemtype.types().blank;
-        const bracket = {};
         const min = {};
         const max = {};
         // 左右にある（少なくともどちらか一方は）越え（下回ら）なければならない優先度の壁
@@ -2210,8 +2232,9 @@ class interpretation {
         // 自身が左右どちらかに子要素を持たない場合、以下の要素を越える（下回る）優先度の解釈は不可能
         max.left = roots.left.sort((l, r) => r.priority - l.priority).find(() => { return true });
         max.right = roots.right.sort((l, r) => r.priority - l.priority).find(() => { return true });
-        bracket.open = roots.left.sort((l, r) => l.horizonal - r.horizonal).find((op) => op.nexter);
-        bracket.close = roots.right.sort((l, r) => r.horizonal - l.horizonal).find((op) => op._parent);
+        const bracket = roots.left.find(parent => {
+            return (parent.horizonal < this.horizonal && this.horizonal < parent.terminator.horizonal);
+        });
 
         for (let def of this.context) {
             if (!def) {
@@ -2219,9 +2242,7 @@ class interpretation {
             } else if (def.priority >= this.priority) {
                 // 自身以降の解釈は敢えて入れない。
                 others.push(undefined);
-            } else if (bracket.open !== undefined && bracket.close !== undefined &&
-                bracket.open.horizonal < def.horizonal && def.horizonal < bracket.close.horizonal
-            ) {
+            } else if (bracket) {
                 // 囲み文字に囲まれた領域は考慮しない。
                 others.push(undefined);
             } else if (def.invalid || !def.finished) {
@@ -2472,9 +2493,9 @@ class interpretation {
                 return false;
             }
 
-            val.parent = this;
+            val.parent = this.starter;
             if (this._leftblank.find(v => v.horizonal == val.horizonal)) {
-                myconsole.implmenterror("Already record horzonal", val.horizonal, this.horizonal);
+                myconsole.implmenterror("Already record horzonal", val.horizonal, val.first, this.horizonal, this.first);
             }
             this._leftblank.push(val);
         } else if (this.left > 0) {
@@ -2484,9 +2505,9 @@ class interpretation {
             if (val.parent) {
                 return false;
             }
-            val.parent = this;
+            val.parent = this.starter;
             if (this._left.find(v => v.horizonal == val.horizonal)) {
-                myconsole.implmenterror("Already record horzonal", val.horizonal, this.horizonal);
+                myconsole.implmenterror("Already record horzonal", val.horizonal, val.first, this.horizonal, this.first);
             }
             this._left.unshift(val);
             return true;
@@ -2507,10 +2528,10 @@ class interpretation {
             if (val.parent) {
                 return false;
             }
-            val.parent = this;
+            val.parent = this.starter;
 
             if (this._rightblank.find(v => v.horizonal == val.horizonal)) {
-                myconsole.implmenterror("Already record horzonal", val.horizonal, this.horizonal);
+                myconsole.implmenterror("Already record horzonal", val.horizonal, val.first, this.horizonal, this.first);
             }
             this._rightblank.unshift(val);
             return true;
@@ -2521,9 +2542,9 @@ class interpretation {
             if (val.parent) {
                 return false;
             }
-            val.parent = this;
+            val.parent = this.starter;
             if (this._right.find(v => v.horizonal == val.horizonal)) {
-                myconsole.implmenterror("Already record horzonal", val.horizonal, this.horizonal);
+                myconsole.implmenterror("Already record horzonal", val.horizonal, val.first, this.horizonal, this.first);
             }
             this._right.push(val);
             return true;
@@ -2900,7 +2921,7 @@ class contexts {
             if (left == 0 && right == 0) {
                 return true;
             }
-            if (left + right == 1 && interpretation.priority <= interpretation.root.priority) {
+            if (left * right == 0 && left + right == 1 && interpretation.priority <= interpretation.root.priority) {
                 if (left && interpretation.root.lefttree) {
                     const tree = interpretation.root.lefttree.nodes;
                     // 左のツリーの右側の要素の優先度より低いならば入り込める
@@ -3136,6 +3157,9 @@ class contexts {
                 self.invalid = true;
                 return;
             } else if (self != self.starter) {
+                return;
+            } else if (self.parent) {
+                // 既に親要素がいるのは、過去の依存チェックで考慮済みな囲み文字の中身
                 return;
             }
 

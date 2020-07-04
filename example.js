@@ -2,7 +2,7 @@ const Calc = require("./calculator.js");
 const text = "return ((1)=>{ if(2){return 3;}})(1)"; // if true
 const text2 = 'return ((1)=>{\n if(0){return 5;};  return 2;})(1)'; // if false
 const text3 = 'return ((1)=>{34; if(1){ return 5;}; return 3;})(1)'; // no return
-const text4 = 'return ((1)=>{\n  if (1) {\n    1;\n    if (1) {\n      if (0) {\n        return  3\n      } else if (0) {\n        return 6\n      } else {\n        return 7;      }\n      return 1\n    }\n    return 5\n  }\n  return 2\n}) (1)'; // <- if this code is "return 7;\n", occur bug.
+const text4 = 'return ((1)=>{\n  if (1) {\n    1;\n    if (1) {\n      if (0) {\n        return  3\n      } else if (0) {\n        return 6\n      } else {\n        return 7;\n      }\n      return 1;\n    }\n    return 5;\n  }\n  return 2;\n}) (1)'; // <- if this code is "return 7;\n", occur bug.
 const calc = new Calc.calculator(text);
 const calc2 = new Calc.calculator(text2);
 const calc3 = new Calc.calculator(text3);
