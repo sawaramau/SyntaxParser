@@ -4,12 +4,17 @@ class config {
         this.join = new order();
         this.types = itemtype.types();
         this.calculator = calculator;
-        this.punctuation = (argv) => {
+        this.punctuation = (argv, meta) => {
             for (let arg of argv) {
-                if (arg.type == this.types.ret) {
-                    return arg.value;
-                } else {
-                    arg.value;
+                const val = arg.value;
+                meta.type = arg.type;
+                if (arg.type == this.types.br) {
+                    return;
+                }
+                if (val instanceof interpretation) {
+                    if (val.meta.type == this.types.ret) {
+                        return val;
+                    }
                 }
             }
             // return のない制御文の返り値は未定義
@@ -29,8 +34,8 @@ class config {
                 new opdefine(
                     [1, "\n", 1],
                     this.join.order.left,
-                    (argv) => {
-                        return this.punctuation(argv);
+                    (argv, meta) => {
+                        return this.punctuation(argv, meta);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -48,8 +53,8 @@ class config {
                 new opdefine(
                     [1, "\r\n", 1],
                     this.join.order.left,
-                    (argv) => {
-                        return this.punctuation(argv);
+                    (argv, meta) => {
+                        return this.punctuation(argv, meta);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -68,8 +73,8 @@ class config {
                 new opdefine(
                     [1, ";", 1],
                     this.join.order.left,
-                    (argv) => {
-                        return this.punctuation(argv);
+                    (argv, meta) => {
+                        return this.punctuation(argv, meta);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -89,8 +94,8 @@ class config {
                 new opdefine(
                     [1, ";"],
                     this.join.order.left,
-                    (argv) => {
-                        return this.punctuation(argv);
+                    (argv, meta) => {
+                        return this.punctuation(argv, meta);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -108,8 +113,8 @@ class config {
                 new opdefine(
                     [1, "\n"],
                     this.join.order.left,
-                    (argv) => {
-                        return this.punctuation(argv);
+                    (argv, meta) => {
+                        return this.punctuation(argv, meta);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -127,8 +132,8 @@ class config {
                 new opdefine(
                     [1, "\r\n"],
                     this.join.order.left,
-                    (argv) => {
-                        return this.punctuation(argv);
+                    (argv, meta) => {
+                        return this.punctuation(argv, meta);
                     },
                     "punctuation", null, 0,
                     new typeset(
@@ -152,6 +157,7 @@ class config {
                     this.join.order.right,
                     (argv) => {
                         // 戻り値は型情報も含めて戻らないといけない
+                        argv[0].meta.type = this.types.ret;
                         return argv[0];
                     },
                     "return", null, 0,
@@ -177,6 +183,23 @@ class config {
                     new typeset(
                         [],
                         [this.types.ret],
+                        [
+                            [this.types.control],
+                        ]
+                    )
+                ),
+                new opdefine(
+                    ["break"],
+                    this.join.order.right,
+                    (argv) => {
+                        () => {
+                            return undefined;
+                        }
+                    },
+                    "break", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.br],
                         [
                             [this.types.control],
                         ]
@@ -326,19 +349,74 @@ class config {
                 ),
 
                 new opdefine(
-                    ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
+                    ["log", "(", 1, ")"],
+                    this.join.order.left,
+                    (argv, meta) => {
+                        console.log(argv[0].value);
+                        return undefined;
+                    },
+                    "log", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.control],
+                        [
+                            [this.types.control],
+                            []
+                        ]
+                    )
+                ),
+
+                new opdefine(
+                    ["for", "(", 1, ")", "{", 1, "}"],
                     this.join.order.right,
-                    (argv) => {
-                        //() => {
-                        for (argv[0].value; argv[1].value; argv[2].value) {
-                            const r = argv[3].value;
-                            if (argv[3].break) {
-                                break;
-                            } else if (argv[3].return) {
+                    (argv, meta) => {
+                        meta.type = this.types.control;
+                        for (let i = 0; i < argv[0].value; i++) {
+                            const r = argv[1].value;
+                            if (argv[1].meta.type == this.types.br) {
+                                return undefined;
+                            } else if (argv[1].meta.type == this.types.ret) {
+                                meta.type = this.types.ret;
                                 return r;
                             }
                         }
-                        //}
+                        return undefined;
+                    },
+                    "for", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.control],
+                        [
+                            [this.types.control],
+                            [this.types.control],
+                            [this.types.control],
+                            [],
+                        ]
+                    )
+                ),
+
+                new opdefine(
+                    ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
+                    this.join.order.right,
+                    (argv, meta) => {
+                        if (this.cnt === undefined) {
+                            this.cnt = 0;
+                        }
+                        meta.type = this.types.control;
+                        for (argv[0].value; argv[1].value; argv[2].value) {
+                            const r = argv[3].value;
+                            if (argv[3].meta.type == this.types.br) {
+                                return undefined;
+                            } else if (argv[3].meta.type == this.types.ret) {
+                                meta.type = this.types.ret;
+                                return r;
+                            }
+                            if (this.cnt > 5) {
+                                break;
+                            }
+                            this.cnt++;
+                        }
+                        return undefined;
                     },
                     "for", null, 0,
                     new typeset(
@@ -1467,9 +1545,12 @@ class typeset {
                 if (i >= this.inputs.length || this.checkinput(this.inputs[i], node.args)) {
                     if (this._outputs[i] == this.types.delegate) {
                         return this._delegates[dele](node.args);
-                    } else if (this._outputs[i] == this.types.control) {
+                    } else {
+                        return this._outputs[i];
+                    }
+                    if (this._outputs[i] == this.types.control) {
                         if (node.value instanceof interpretation) {
-                            return this.types.ret;
+                            return node.meta.type;
                         } else {
                             return this.types.control;
                         }
@@ -1484,7 +1565,7 @@ class typeset {
                         }
                         return this.types.unsettled;
                     }
-                    return this._outputs[i];
+
                 } else if (this._outputs[i] == this.types.delegate) {
                     dele++;
                 }
@@ -1588,6 +1669,9 @@ class opdefine {
 
     gettype(node) {
         return this._inouts.gettype(node);
+    }
+    get outputs() {
+        return this._inouts._outputs;
     }
 
     get grammer() {
@@ -1801,7 +1885,8 @@ class interpretation {
     // offsetは部分的な構文解析時に使用
     constructor(define, parent, offset = 0) {
         if (define === undefined) {
-            myconsole.implmenterror("Unexpected define. This is undefined");
+            throw ("a");
+            myconsole.implmenterror("Unexpected define. This is undefined", parent);
         }
 
         this._invalid = false;
@@ -1811,6 +1896,7 @@ class interpretation {
             // 適宜もらう事にする。
             this._parent = parent;
         }
+        this._meta = {};
         this._left = [];   // left children
         this._childtrees = []; // 
         this._right = [];  // right children
@@ -2275,6 +2361,7 @@ class interpretation {
         if (elm.invalid) {
             return elm;
         }
+        elm._meta = this._meta;
         elm._nexter = this._nexter;
         elm._context = this._context.slice();
         elm._childtrees = this._childtrees;
@@ -2405,12 +2492,12 @@ class interpretation {
         if (this._parent) {
             this.parent.invalid = val;
         }
-        if (0) {
+        if (val) {
             // release
             this._left = null;   // left children
             this._childtrees = null; // 
             this._right = null;  // right children
-            //this._brothers = null;
+            this._brothers = null;
             this._leftblank = null;
             this._rightblank = null;
             this._childblanktrees = null; // 
@@ -2438,12 +2525,18 @@ class interpretation {
         return this.define.order;
     }
     get left() {
+        if (this.invalid) {
+            return -1;
+        }
         if (this._parent) {
             return this.define.left - this._childtrees.length;
         }
         return this.define.left - this._left.length;
     }
     get right() {
+        if (this.invalid) {
+            return -1;
+        }
         if (this._parent) {
             return 0;
         }
@@ -2451,6 +2544,9 @@ class interpretation {
     }
 
     get type() {
+        if (this.invalid) {
+            return undefined;
+        }
         return this.define.gettype(this);
     }
 
@@ -3172,8 +3268,9 @@ class contexts {
                 let blank = false;
 
                 for (let neighbor of neighbors) {
-                    // より優先度の高い子を探す
                     blank = (neighbor.type == itemtype.types().blank);
+
+                    // より優先度の高い子を探す
                     if (self.priority > neighbor.priority) {
                         // 自身の優先度より低い要素は無視。これ以降も総じて優先度が低いのでbreak
                         break;
@@ -3326,6 +3423,7 @@ class contexts {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
                 this._temporary[index] = new context(keyword);
+
 
                 const roots = this.dependency(nexters.find(v => !v.invalid).parent.horizonal + 1);
                 const length = (() => {
@@ -3510,7 +3608,7 @@ class ops {
     get undefined() {
         if (this._undefined === undefined) {
             for (let def of this.constant) {
-                if (def.gettype() == itemtype.types().undef) {
+                if (def.outputs[0] == itemtype.types().undef) {
                     this._undefined = def;
                     break;
                 }
@@ -3554,8 +3652,9 @@ class calculator {
 
     return() {
         const result = this.result.dependency();
+        const val = result[0].value;
         if (result[0].type == itemtype.types().ret) {
-            return result[0].value;
+            return val;
         }
         return new interpretation(this.config.ops.undefined);
     }
