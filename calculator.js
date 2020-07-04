@@ -265,8 +265,11 @@ class config {
                     this.join.order.left,
                     (argv, meta) => {
                         const val = argv[0].value;
+                        meta.type = argv[0].meta.type;
                         if (argv[0].meta.type == this.types.esc) {
-                            return argv[2].value;
+                            const v = argv[2].value;
+                            meta.type = argv[2].meta.type;
+                            return v;
                         }
                         return val;
                     },
@@ -412,6 +415,7 @@ class config {
                             const val = argv[1].value;
                             meta.type = argv[1].meta.type;
                             if (meta.type == this.types.br) {
+                                meta.type = this.types.control;
                                 return val;
                             } else if (meta.type == this.types.ret) {
                                 return val;
@@ -857,7 +861,7 @@ class config {
                         if (exe === undefined) {
                             return undefined;
                         }
-                        meta = exe.meta.type;
+                        meta.type = exe.meta.type;
                         return exe.value;
                     },
                     "()", null, 0,
@@ -3745,7 +3749,10 @@ class calculator {
     return() {
         const result = this.result.dependency();
         const val = result[0].value;
-        if (result[0].type == itemtype.types().ret) {
+        if (
+            result[0].type == itemtype.types().ret
+            || result[0].meta.type == itemtype.types().ret
+        ) {
             return val;
         }
         return new interpretation(this.config.ops.undefined);
