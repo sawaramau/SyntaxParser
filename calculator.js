@@ -7,14 +7,21 @@ class config {
         this.punctuation = (argv, meta) => {
             for (let arg of argv) {
                 const val = arg.value;
-                meta.type = arg.type;
-                if (arg.type == this.types.br) {
-                    return;
+                if (
+                    arg.type == this.types.ret
+                    || arg.type == this.types.esc
+                    || arg.type == this.types.br
+                ) {
+                    meta.type = arg.type;
+                    return val;
                 }
-                if (val instanceof interpretation) {
-                    if (val.meta.type == this.types.ret) {
-                        return val;
-                    }
+                meta.type = arg.meta.type;
+                if (
+                    arg.meta.type == this.types.ret
+                    || arg.meta.type == this.types.esc
+                    || arg.meta.type == this.types.br
+                ) {
+                    return val;
                 }
             }
             // return のない制御文の返り値は未定義
@@ -155,9 +162,9 @@ class config {
                 new opdefine(
                     ["return", 1],
                     this.join.order.right,
-                    (argv) => {
+                    (argv, meta) => {
                         // 戻り値は型情報も含めて戻らないといけない
-                        argv[0].meta.type = this.types.ret;
+                        meta.type = this.types.ret;
                         return argv[0];
                     },
                     "return", null, 0,
@@ -174,8 +181,9 @@ class config {
                 new opdefine(
                     ["return"],
                     this.join.order.right,
-                    (argv) => {
+                    (argv, meta) => {
                         () => {
+                            meta.type = this.types.ret;
                             return undefined;
                         }
                     },
@@ -191,8 +199,9 @@ class config {
                 new opdefine(
                     ["break"],
                     this.join.order.right,
-                    (argv) => {
+                    (argv, meta) => {
                         () => {
+                            meta.type = this.types.br;
                             return undefined;
                         }
                     },
@@ -252,15 +261,39 @@ class config {
             ],
             [
                 new opdefine(
+                    ["try", "{", 1, "}", "catch", "(", 1, ")", "{", 1, "}"],
+                    this.join.order.left,
+                    (argv, meta) => {
+                        const val = argv[0].value;
+                        if (argv[0].meta.type == this.types.esc) {
+                            return argv[2].value;
+                        }
+                        return val;
+                    },
+                    "try", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.control],
+                        [
+                            [this.types.control],
+                            []
+                        ]
+                    )
+                ),
+
+                new opdefine(
                     [1, "else", "if", "(", 1, ")", "{", 1, "}"],
                     this.join.order.left,
                     (argv, meta) => {
                         const val = argv[0].value;
                         meta.success = true;
+                        meta.type = argv[0].meta.type;
                         if (argv[0].meta.success) {
                             return val;
                         } else if (argv[1].value) {
-                            return argv[2].value;
+                            const val = argv[2].value;
+                            meta.type = argv[2].meta.type;
+                            return val;
                         }
                         meta.success = false;
                         return undefined;
@@ -279,12 +312,15 @@ class config {
                 new opdefine(
                     [1, "else", "{", 1, "}"],
                     this.join.order.left,
-                    (argv) => {
+                    (argv, meta) => {
                         const val = argv[0].value;
+                        meta.type = argv[0].meta.type;
                         if (argv[0].meta.success) {
                             return val;
                         } else {
-                            return argv[1].value;
+                            const val = argv[1].value;
+                            meta.type = argv[1].meta.type;
+                            return val;
                         }
                     },
                     "if", null, 0,
@@ -328,10 +364,12 @@ class config {
                     ["if", "(", 1, ")", "{", 1, "}"],
                     this.join.order.left,
                     (argv, meta) => {
-
+                        meta.type = this.types.control;
                         if (argv[0].value) {
                             meta.success = true;
-                            return argv[1].value;
+                            const val = argv[1].value;
+                            meta.type = argv[1].meta.type;
+                            return val;
                         }
                         meta.success = false;
                         return undefined;
@@ -370,16 +408,18 @@ class config {
                     ["for", "(", 1, ")", "{", 1, "}"],
                     this.join.order.right,
                     (argv, meta) => {
-                        meta.type = this.types.control;
                         for (let i = 0; i < argv[0].value; i++) {
-                            const r = argv[1].value;
-                            if (argv[1].meta.type == this.types.br) {
-                                return undefined;
-                            } else if (argv[1].meta.type == this.types.ret) {
-                                meta.type = this.types.ret;
-                                return r;
+                            const val = argv[1].value;
+                            meta.type = argv[1].meta.type;
+                            if (meta.type == this.types.br) {
+                                return val;
+                            } else if (meta.type == this.types.ret) {
+                                return val;
+                            } else if (meta.type == this.types.esc) {
+                                return val;
                             }
                         }
+                        meta.type = this.types.control;
                         return undefined;
                     },
                     "for", null, 0,
@@ -782,21 +822,43 @@ class config {
 
 
             ],
-
+            [
+                new opdefine(
+                    ["throw", "(", 1, ")"],
+                    this.join.order.left,
+                    (argv) => {
+                        argv[0].meta.type = this.types.esc;
+                        return argv[0];
+                    },
+                    "()", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [this.types.esc],
+                        [
+                            [this.types.control],
+                        ],
+                        [
+                        ],
+                    )
+                )
+            ],
             [
                 // operator
                 // brackets
                 new opdefine(
                     [1, "(", 1, ")"],
                     this.join.order.left,
-                    (argv) => {
+                    (argv, meta) => {
                         //if (argv[1].op != ",") {
                         //    return argv[0].value([argv[1]]);
                         //}
-                        if (argv[0].value(argv[1].value) === undefined) {
+                        const exe = argv[0].value(argv[1].value);
+                        if (exe === undefined) {
                             return undefined;
                         }
-                        return argv[0].value(argv[1].value).value;
+                        meta = exe.meta.type;
+                        return exe.value;
                     },
                     "()", null, 0,
                     new typeset(
