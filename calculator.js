@@ -1122,6 +1122,8 @@ class config {
                             for (let i = index; i > 0; i--) {
                                 if (text[i] == "\\") {
                                     result++;
+                                } else {
+                                    break;
                                 }
                             }
                             if (result % 2 == 0) {
@@ -1160,7 +1162,35 @@ class config {
                     },
                     null,
                     (val) => {
-                        return val;
+                        let org = val.slice(1, val.length - 1);
+                        const escapes = [
+                            ["r", "\r"],
+                            ["\\", "\\"],
+                            ["n", "\n"],
+                            ["b", "\b"],
+                            ["t", "\t"],
+                            ["v", "\v"],
+                            ["'", "\'"],
+                            ['"', "\""],
+                            ["0", "\0"],
+                        ];
+                        let str = "";
+                        let cnt = 0;
+                        for (let i = 0; i + cnt < org.length; i++) {
+                            const c = org[i + cnt];
+                            if (c == "\\") {
+                                const e = escapes.find(v => v[0] == org[i + cnt + 1]);
+                                if (e) {
+                                    cnt++;
+                                    str += e[1];
+                                } else {
+                                    str += c;
+                                }
+                            } else {
+                                str += c;
+                            }
+                        }
+                        return str;
                     },
                     "string", null, 0,
                     new typeset(
