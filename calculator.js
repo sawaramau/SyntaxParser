@@ -1460,40 +1460,11 @@ class typeset {
         if (!this._outputs || this._outputs.length == 0) {
             myconsole.defineerror("Output type undefined");
             return undefined;
-        } else if (this._outputs.length == 1) {
-            if (
-                this._outputs[0] != this.types.ref
-                && this._outputs[0] != this.types.control
-                && this._outputs[0] != this.types.delegate
-                && this._outputs[0] != this.types.through
-            ) {
-                return this._outputs[0];
-            } else if (node && !node.left && !node.right && !node._parent) {
-                if (this._outputs[0] == this.types.delegate) {
-                    return this._delegates[0](node.args);
-                } else if (this._outputs[0] == this.types.control) {
-                    if (node.value instanceof interpretation) {
-                        return this.types.ret;
-                    } else {
-                        return this.types.control;
-                    }
-                } else if (this._outputs[0] == this.types.through) {
-                    if (node.args.length) {
-                        return node.args[0].type;
-                    }
-                    return this.types.unsettled;
-                } else if (this._outputs[0] == this.types.ref) {
-                    if (node.value) {
-                        return node.value.type;
-                    }
-                    return this.types.unsettled;
-                }
-            }
         }
         if (node && !node.left && !node.right && !node._parent) {
             let dele = 0;
-            for (let i = 0; i < this.inputs.length; i++) {
-                if (this.checkinput(this.inputs[i], node.args)) {
+            for (let i = 0; i < this._outputs.length; i++) {
+                if (i >= this.inputs.length || this.checkinput(this.inputs[i], node.args)) {
                     if (this._outputs[i] == this.types.delegate) {
                         return this._delegates[dele](node.args);
                     } else if (this._outputs[i] == this.types.control) {
@@ -1544,7 +1515,7 @@ class itemtype {
 
     static types() {
         let blank = myenum.define(0);
-        let control, ret;
+        let control, ret, br, esc;
         let number, string, bool, func, ref, array, object, through, delegate, parallel, notunavailable;
         let unsettled;
         let undef;
@@ -1560,6 +1531,8 @@ class itemtype {
             array,
             object,
             ret,            // return
+            br,             // break
+            esc,            // throw
             through,        // 第1引数の型と同じ扱いとする特殊型
             delegate,       // 型決定論を解釈側に丸投げする
             parallel,       // カンマ区切りの並列表記
