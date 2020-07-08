@@ -558,7 +558,10 @@ class config {
                         const namespace = meta.self.namespace;
                         argv[0].value;
                         const name = argv[0].name;
-                        const value = argv[1].value;
+                        const value = {
+                            value: argv[1].value,
+                            type: argv[1].type
+                        };
                         meta.type = this.types.control;
                         if (namespace.include(name)) {
                             namespace.set(name, value, false);
@@ -3811,6 +3814,34 @@ class ops {
     }
 }
 
+class value {
+    constructor(val, constant) {
+        this.value = val;
+        this._constant = constant;
+    }
+
+    get constant() {
+        return this._constant;
+    }
+
+    set value(val) {
+        if (this.constant) {
+            myconsole.programerror(name, "is constant.");
+        } else {
+            this._value = val.value;
+            this._type = val.type;
+        }
+    }
+
+    get value() {
+        return this._value;
+    }
+
+    get type() {
+        return this._type;
+    }
+}
+
 class namespace {
     constructor(parent, global = true) {
         this._parent = parent;
@@ -3853,14 +3884,11 @@ class namespace {
         return this.parent.include(name, global);
     }
 
-    declare(name, value, constant) {
+    declare(name, val, constant) {
         if (name in this._local) {
             myconsole.programerror(name, "is already declared.");
         } else {
-            this._local[name] = {
-                value,
-                constant
-            };
+            this._local[name] = new value(val, constant);
         }
     }
 
@@ -3873,12 +3901,9 @@ class namespace {
             }
         } else if (!strict) {
             if (!this.nodeclaration || !this.parent) {
-                this._local[name] = {
-                    value,
-                    constant: false,
-                };
+                this._local[name] = new value(val, false);
             } else {
-                this.parent.set(name, value);
+                this.parent.set(name, val);
             }
         } else {
             myconsole.programerror(name, "is not declared.");
