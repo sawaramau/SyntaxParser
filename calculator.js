@@ -3892,13 +3892,9 @@ class namespace {
         }
     }
 
-    set(name, value, strict) {
+    set(name, value, strict = false) {
         if (name in this._local) {
-            if (this._local[name].constant) {
-                myconsole.programerror(name, "is constant.");
-            } else {
-                this._local[name].value = value;
-            }
+            this._local[name].value = value;
         } else if (!strict) {
             if (!this.nodeclaration || !this.parent) {
                 this._local[name] = new value(val, false);
@@ -3906,8 +3902,16 @@ class namespace {
                 this.parent.set(name, val);
             }
         } else {
-            myconsole.programerror(name, "is not declared.");
+            if (this.parent) {
+                this.parent.set(name, val);
+            } else {
+                myconsole.programerror(name, "is not declared.");
+            }
         }
+    }
+
+    access(name) {
+
     }
 
     resolve(name) {
