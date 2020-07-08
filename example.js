@@ -1,6 +1,6 @@
 const Calc = require("./calculator.js");
 const text = "return {x:2}.x"; // object
-const text2 = 'return ({a:1}?a) ? ({x:12}?x) : ({y:8}?y);';
+const text2 = 'return {a:1}?a ? ({x: {y : 10}}.x.y) : {y:8}?y';
 const text3 = 'return {a:5}?c?d';
 const text4 = 'return ((1) => {return {abc: 123}?abc})(1)';
 const calc = new Calc.calculator(text);

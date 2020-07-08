@@ -503,7 +503,7 @@ class config {
                 // アクセサ
                 new opdefine(
                     [1, "?", 1],
-                    this.join.order.right,
+                    this.join.order.left,
                     (argv, meta) => {
                         const space = argv[0].value;
                         if (!(space instanceof namespace)) {
@@ -529,7 +529,7 @@ class config {
                 ),
                 new opdefine(
                     [1, ".", 1],
-                    this.join.order.right,
+                    this.join.order.left,
                     (argv, meta) => {
                         const namespace = argv[0].value;
                         argv[1].namespace = namespace;
