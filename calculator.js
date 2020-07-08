@@ -2889,6 +2889,21 @@ class context {
         }
         return contexts;
     }
+    get closed() {
+        for (let def of this.context) {
+            if (!def || def.invalid) {
+                continue;
+            }
+            const nexter = def.nexter;
+            if (nexter && nexter.invalid) {
+                continue;
+            }
+            if (!nexter) {
+                return true;
+            }
+        }
+        return false;
+    }
 
 }
 
@@ -3572,6 +3587,7 @@ class contexts {
         let i;
         for (let index = 0; index < this._temporary.length; index++) {
             const contexts = this._temporary[index].contexts;
+            const closed = this._temporary[index].closed;
             if (keyword in contexts) {
                 const nexters = contexts[keyword].context.sort((l, r) => {
                     return r.priority - l.priority;
@@ -3602,6 +3618,9 @@ class contexts {
                     return false;
                 });
                 i = index;
+                break;
+            }
+            if (!closed) {
                 break;
             }
         }
