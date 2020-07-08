@@ -502,10 +502,21 @@ class config {
             [
                 // アクセサ
                 new opdefine(
-                    [1, "???", 1],
+                    [1, "?", 1],
                     this.join.order.right,
-                    (argv) => {
-                        return null;
+                    (argv, meta) => {
+                        const space = argv[0].value;
+                        if (!(space instanceof namespace)) {
+                            return undefined;
+                        }
+                        argv[1].namespace = space;
+                        argv[1].value;
+                        const name = argv[1].name;
+                        meta.ref = space.resolve(name);
+                        if (meta.ref) {
+                            return meta.ref.value;
+                        }
+                        return undefined;
                     },
                     "?", null, 0,
                     new typeset(
@@ -516,15 +527,44 @@ class config {
                         ]
                     )
                 ),
+                new opdefine(
+                    [1, ".", 1],
+                    this.join.order.right,
+                    (argv, meta) => {
+                        const namespace = argv[0].value;
+                        argv[1].namespace = namespace;
+                        argv[1].value;
+                        const name = argv[1].name;
+                        meta.ref = namespace.resolve(name);
+                        return meta.ref.value;
+                    },
+                    ".", null, 0,
+                    new typeset(
+                        [[this.types.ref, this.types.ref]],
+                        [this.types.ref],
+                        [
+                            [this.types.control],
+                        ]
+                    )
+                ),
             ],
 
-            /*
             [
                 // 
                 new opdefine(
                     [1, ":", 1],
                     this.join.order.right,
-                    (argv) => {
+                    (argv, meta) => {
+                        const namespace = meta.self.namespace;
+                        argv[0].value;
+                        const name = argv[0].name;
+                        const value = argv[1].value;
+                        meta.type = this.types.control;
+                        if (namespace.include(name)) {
+                            namespace.set(name, value, false);
+                        } else {
+                            namespace.declare(name, value, false);
+                        }
                         return undefined;
                     },
                     ":", null, 0,
@@ -537,7 +577,6 @@ class config {
                     )
                 ),
             ],
-            */
             [
                 // 論理演算3
                 new opdefine(
@@ -769,7 +808,6 @@ class config {
                 ),
             ],
 
-
             [
                 // 四則演算1+(単項)
                 new opdefine(
@@ -834,7 +872,7 @@ class config {
                         argv[0].meta.type = this.types.esc;
                         return argv[0];
                     },
-                    "()", null, 0,
+                    "throw", null, 0,
                     new typeset(
                         [
                         ],
@@ -967,8 +1005,11 @@ class config {
                 new opdefine(
                     ["{", 1, "}"],
                     this.join.order.left,
-                    (argv) => {
-                        return argv[0].value;
+                    (argv, meta) => {
+                        argv[0].namespace = new namespace();
+                        meta.type = this.types.object;
+                        argv[0].value;
+                        return argv[0].namespace
                     },
                     "{}", null, 0,
                     new typeset(
@@ -1074,8 +1115,7 @@ class config {
                             return true;
                         }
                         return false;
-                    }
-                    ,
+                    },
                     null,
                     (val) => {
                         return Number(val);
@@ -1102,8 +1142,15 @@ class config {
                         return false;
                     },
                     null,
-                    (val) => {
-                        return Number(val);
+                    (val, meta) => {
+                        const namespace = meta.self.namespace;
+                        const name = val;
+                        meta.name = val;
+                        meta.ref = namespace.resolve(name);
+                        if (meta.ref) {
+                            return meta.ref.value;
+                        }
+                        return undefined;
                     },
                     "variable", null, 0,
                     new typeset(
@@ -1435,6 +1482,23 @@ class myconsole {
         myconsole.log(array);
     }
 
+    static programerror() {
+        const array = [];
+        const reg = /(.*)([\r\n\n])$/;
+        for (let i = 0; i < arguments.length; i++) {
+            if ((typeof arguments[i]) == "string") {
+                const m = arguments[i].match(reg);
+                if (m) {
+                    array.push('\u001b[35m' + m[1] + '\u001b[0m' + m[2]);
+                } else {
+                    array.push('\u001b[35m' + arguments[i] + '\u001b[0m');
+                }
+            } else {
+                array.push(arguments[i]);
+            }
+        }
+        myconsole.log(array);
+    }
 
     static red() {
         const array = []
@@ -1752,8 +1816,8 @@ class opdefine {
         this.formula = formula;
         if (typeof this._grammer == "function") {
             if (formula) {
-                this.formula = (argv) => {
-                    return formula(argv);
+                this.formula = (argv, meta) => {
+                    return formula(argv, meta);
                 }
             }
         }
@@ -1837,8 +1901,8 @@ class opdefine {
             return int;
         }
         if (this.formula) {
-            const def = new opdefine([keyword], this.order, () => {
-                return this.formula(keyword);
+            const def = new opdefine([keyword], this.order, (argv, meta) => {
+                return this.formula(keyword, meta);
             }, this.groupid, this.meta, this.root, this._inouts);
             def.priority = this.priority;
             const int = new interpretation(def);
@@ -1981,18 +2045,15 @@ class interpretation {
     // offsetは部分的な構文解析時に使用
     constructor(define, parent, offset = 0) {
         if (define === undefined) {
-            throw ("a");
             myconsole.implmenterror("Unexpected define. This is undefined", parent);
         }
 
         this._invalid = false;
         this._define = define; // opdefine
         if (parent) {
-            // 親の生成直後は位置が確定していないが、その段階では子にとっても親の位置は重要ではないため、
-            // 適宜もらう事にする。
             this._parent = parent;
         }
-        this._meta = {};
+        this.meta;
         this._left = [];   // left children
         this._childtrees = []; // 
         this._right = [];  // right children
@@ -2002,6 +2063,20 @@ class interpretation {
         this._rightblank = [];
         this._childblanktrees = []; // 
         //this._starters;
+    }
+
+    set namespace(val) {
+        this.meta.namespace = val;
+    }
+
+    get namespace() {
+        if (this.meta.namespace) {
+            return this.meta.namespace;
+        }
+        if (this.parent) {
+            return this.parent.namespace;
+        }
+        return undefined;
     }
 
     set starter(val) {
@@ -2127,9 +2202,7 @@ class interpretation {
         this._childtrees = [];
         this._childblanktrees = [];
         for (let op of val) {
-            //const op = def;
-            //op.program.push([this]);
-            op.parent = this;
+            op.parent = this.starter;
             if (op.type == itemtype.types().blank) {
                 this._childblanktrees.push(op);
             } else {
@@ -2159,13 +2232,10 @@ class interpretation {
             if (child instanceof interpretation) {
                 return child;
             }
-            //return this.program[child.horizonal - this.offset][child.vertical];
         });
         for (let child of this._leftblank) {
             if (child instanceof interpretation) {
                 left.push(child);
-            } else {
-                //left.push(this.program[child.horizonal - this.offset][child.vertical]);
             }
         }
         const right = (() => {
@@ -2176,15 +2246,11 @@ class interpretation {
             for (let child of this._right) {
                 if (child instanceof interpretation) {
                     right.push(child);
-                } else {
-                    //right.push(this.program[child.horizonal - this.offset][child.vertical]);
                 }
             }
             for (let child of this._rightblank) {
                 if (child instanceof interpretation) {
                     right.push(child);
-                } else {
-                    //right.push(this.program[child.horizonal - this.offset][child.vertical]);
                 }
             }
             return right;
@@ -2215,7 +2281,6 @@ class interpretation {
             if (child instanceof interpretation) {
                 return child;
             }
-            //return this.program[child.horizonal - this.offset][child.vertical];
         });
         const right = (() => {
             if (this._parent) {
@@ -2225,8 +2290,6 @@ class interpretation {
             for (let child of this._right) {
                 if (child instanceof interpretation) {
                     right.push(child);
-                } else {
-                    //right.push(this.program[child.horizonal - this.offset][child.vertical]);
                 }
             }
             return right;
@@ -2257,7 +2320,6 @@ class interpretation {
             if (child instanceof interpretation) {
                 return child;
             }
-            //return this.program[child.horizonal - this.offset][child.vertical];
         });
         const right = (() => {
             const right = [];
@@ -2443,12 +2505,6 @@ class interpretation {
         return this.define.grammer;
     }
 
-    set program(val) {
-        this._program = val;
-    }
-    get program() {
-    }
-
     get clone() {
         const elm = new interpretation(this.define, this._parent, this.offset);
         elm._vertical = this._vertical;
@@ -2457,7 +2513,6 @@ class interpretation {
         if (elm.invalid) {
             return elm;
         }
-        elm._meta = this._meta;
         elm._nexter = this._nexter;
         elm._context = this._context.slice();
         elm._childtrees = this._childtrees;
@@ -2503,7 +2558,6 @@ class interpretation {
         }
         if (!this._nexter) {
             const nexter = new interpretation(this.define.nexter, this, this.offset);
-            nexter.program = this.program;
             this._nexter = nexter;
         }
         return this._nexter;
@@ -2511,9 +2565,15 @@ class interpretation {
 
     get meta() {
         if (this._meta === undefined) {
-            this._meta = {};
+            this._meta = {
+                self: this
+            };
         }
         return this._meta;
+    }
+
+    get name() {
+        return this.meta.name;
     }
 
     get value() {
@@ -2844,7 +2904,6 @@ class contexts {
         for (let interpretation of context) {
             interpretation.horizonal = this.program.length;
             interpretation.vertical = i;
-            interpretation.program = this.program;
             interpretation.context = context;
             i++;
         }
@@ -2877,7 +2936,6 @@ class contexts {
                     return clone;
                 })()
                 clone.offset = start;
-                clone.program = program;
                 array.push(clone);
             }
             program.push(array);
@@ -3731,6 +3789,91 @@ class ops {
             priority++;
         }
         this.validation();
+    }
+}
+
+class namespace {
+    constructor(parent, global = true) {
+        this._parent = parent;
+        this._local = {};
+        this.reserved = {};
+        this.nodeclaration = global; // trueのとき、宣言無しのsetはグローバル領域で覚える
+    }
+
+    get meta() {
+        const meta = {
+            type: itemtype.types().object,
+            self: this,
+        };
+        return meta;
+    }
+
+    get value() {
+        const value = {};
+        for (let key of Object.keys(this._local)) {
+            value[key] = this._local[key].value;
+        }
+        return value;
+    }
+
+    get parent() {
+        return this._parent;
+    }
+
+    set parent(val) {
+        this._parent = val;
+    }
+
+    include(name, global = false) {
+        if (name in this._local) {
+            return true;
+        }
+        if (!global || !this.parent) {
+            return false;
+        }
+        return this.parent.include(name, global);
+    }
+
+    declare(name, value, constant) {
+        if (name in this._local) {
+            myconsole.programerror(name, "is already declared.");
+        } else {
+            this._local[name] = {
+                value,
+                constant
+            };
+        }
+    }
+
+    set(name, value, strict) {
+        if (name in this._local) {
+            if (this._local[name].constant) {
+                myconsole.programerror(name, "is constant.");
+            } else {
+                this._local[name].value = value;
+            }
+        } else if (!strict) {
+            if (!this.nodeclaration || !this.parent) {
+                this._local[name] = {
+                    value,
+                    constant: false,
+                };
+            } else {
+                this.parent.set(name, value);
+            }
+        } else {
+            myconsole.programerror(name, "is not declared.");
+        }
+    }
+
+    resolve(name) {
+        if (name in this._local) {
+            return this._local[name];
+        }
+        if (this.parent) {
+            return this.parent.rosolve(name);
+        }
+        return undefined;
     }
 }
 

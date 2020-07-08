@@ -1,9 +1,8 @@
 const Calc = require("./calculator.js");
-//const text = "return ((1)=>{ if(2){return 3;}})(1)"; // if true
-const text = "if (1) {10;}; try {for (3) {log(1); if (1){log(2); break;};};throw(1);} catch (1) {log('t\\ne\\tst'); return 100;}"; // if true
-const text2 = 'return ((1)=>{\n if(0){return 5;};  return 2;})(1)'; // if false
-const text3 = 'return ((1)=>{34; if(1){ return 5;}; return 3;})(1)'; // no return
-const text4 = 'return ((1)=>{\n  if (1) {\n    1;\n    if (1) {\n      if (0) {\n        return  3\n      } else if (0) {\n        return 6\n      } else {\n        return 7;\n      }\n      return 1;\n    }\n    return 5;\n  }\n  return 2;\n}) (1)'; // <- if this code is "return 7;\n", occur bug.
+const text = "return {x:2}.x"; // object
+const text2 = 'return {a:3}?a';
+const text3 = 'return {a:5}?c?d';
+const text4 = 'return ((1) => {return {abc: 123}?abc})(1)';
 const calc = new Calc.calculator(text);
 const calc2 = new Calc.calculator(text2);
 const calc3 = new Calc.calculator(text3);
@@ -14,6 +13,7 @@ const strslice = (str, pos, insert, len = 5) => {
     const b = str.slice(pos + len);
     return a + insert + b;
 };
+const res = [];
 const view = (node, view, results, depth = 0) => {
     if (results[depth] === undefined) {
         results[depth] = "";
@@ -39,7 +39,7 @@ const view = (node, view, results, depth = 0) => {
         }
     }
 }
-
+const ret = calc.result.dependency();
 console.log("-------------   calc1   -------------");
 console.log(text);
 console.log(calc.return().value);
