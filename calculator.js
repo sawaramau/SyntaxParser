@@ -3928,8 +3928,8 @@ class property {
 
 // 計算機クラス
 class calculator {
-    constructor(text) {
-        this.config = new config();
+    constructor(text, opdefs) {
+        this.config = new config(opdefs);
         if (text instanceof mystr) {
             this.text = text;
         } else {
