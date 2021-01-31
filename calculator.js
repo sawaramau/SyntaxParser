@@ -2222,18 +2222,47 @@ class interpretation {
         //this._starters;
     }
 
-    printtree(depth = 0) {
-        let blank = "┗━━";
+    printtree(hist = {}, depth = 0, color = 0) {
+        const left = this.leftchildren;
+        const right = this.rightchildren;
+        const maxcount = left.length + right.length;
+
+        let branch = (color ? '\u001b[32m' : '\u001b[96m') + ((depth == 0 || hist[depth - 1] == " ") ? "┗" : "┣") + "━━" + '\u001b[0m';
+        let blank = ""
         for (let i = 0; i < depth; i++) {
-            blank = "      " + blank;
+            blank += "    " + (i == depth - 1 ? "" : hist[i]);
         }
-        if (this.define.priority > 1) {
-            myconsole.log([blank + " ", "[" + this.first + "]"]);
-            depth++;
+        if (this.define.priority > -1) {
+            myconsole.log([" " + blank + branch, "[" + this.first.replace("\r\n", "\\r\\n") + "]"]);
+            depth;
         }
-        this.children.forEach((node) => {
-            node.printtree(depth);
-        });
+
+        if (left.length) {
+            hist[depth] = '\u001b[96m' + "┃" + '\u001b[0m';
+        } else if (right.length) {
+            hist[depth] = '\u001b[32m' + "┃" + '\u001b[0m';
+        } else {
+            hist[depth] = " ";
+        }
+        
+        for (let i = 0; i < left.length; i++) {
+            const node = left[i];
+            if (i == left.length - 1) {
+                hist[depth] = '\u001b[32m' + "┃" + '\u001b[0m';
+            }
+            if (i == maxcount - 1) {
+                hist[depth] = " ";
+            }
+            node.printtree(hist, depth + 1, 0);
+        }
+        for (let i = 0; i < right.length; i++) {
+            const node = right[i];
+            if (i == right.length - 1) {
+                hist[depth] = " ";
+            }
+            node.printtree(hist, depth + 1, 1);
+        }
+        hist[depth] = " ";
     }
 
     get rootnamespace() {
@@ -2462,14 +2491,23 @@ class interpretation {
 
     }
 
-    get children() {
-        // 空白文字を含まない全ての子供
-        const left = this._left.map(child => {
+    get leftchildren() {
+        const children = this._left.map(child => {
             if (child instanceof interpretation) {
                 return child;
             }
         });
-        const right = (() => {
+        children.sort((l, r) => {
+            if (l.horizonal == r.horizonal) {
+                myconsole.implmenterror("Violation!");
+            }
+            return l.horizonal - r.horizonal;
+        });
+        return children;
+    }
+
+    get rightchildren() {
+        const children = (() => {
             if (this._parent) {
                 return [];
             }
@@ -2481,6 +2519,19 @@ class interpretation {
             }
             return right;
         })();
+        children.sort((l, r) => {
+            if (l.horizonal == r.horizonal) {
+                myconsole.implmenterror("Violation!");
+            }
+            return l.horizonal - r.horizonal;
+        });
+        return children;
+    }
+
+    get children() {
+        // 空白文字を含まない全ての子供
+        const left = this.leftchildren;
+        const right = this.rightchildren;
         const children = [];
         for (let child of left) {
             children.push(child);
