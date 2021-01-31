@@ -1008,10 +1008,36 @@ class config {
                     ["{", 1, "}"],
                     this.join.order.left,
                     (argv, meta) => {
-                        argv[0].namespace = new namespace();
+                        argv[0].property = new property();
                         meta.type = this.types.object;
                         argv[0].value;
-                        return argv[0].namespace
+                        return argv[0].property
+                    },
+                    "{}", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [this.types.object],
+                        [
+                            [this.types.control],
+                        ],
+                        [
+                        ],
+                    )
+                ),
+            ],
+
+            // 代入
+            [
+                new opdefine(
+                    [1, "=", 1],
+                    this.join.order.left,
+                    (argv, meta) => {
+                        argv[0].property = new property();
+                        meta.type = this.types.object;
+                        argv[0].value;
+                        
+                        return argv[0].property
                     },
                     "{}", null, 0,
                     new typeset(
