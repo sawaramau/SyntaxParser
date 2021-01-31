@@ -1,9 +1,9 @@
 // 演算子の定義など、解析器が必要とする基礎情報をまとめて保持するクラス
 class config {
-    constructor(calculator, opdefs) {
+    constructor(opdefs) {
         this.join = new order();
         this.types = itemtype.types();
-        this.calculator = calculator;
+        //this.calculator = calculator;
         this.punctuation = (argv, meta) => {
             for (let arg of argv) {
                 const val = arg.value;
