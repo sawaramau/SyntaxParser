@@ -506,10 +506,10 @@ class config {
                     this.join.order.left,
                     (argv, meta) => {
                         const space = argv[0].value;
-                        if (!(space instanceof namespace)) {
+                        if (!(space instanceof property)) {
                             return undefined;
                         }
-                        argv[1].namespace = space;
+                        argv[1].property = space;
                         argv[1].value;
                         const name = argv[1].name;
                         meta.ref = space.resolve(name);
@@ -531,11 +531,11 @@ class config {
                     [1, ".", 1],
                     this.join.order.left,
                     (argv, meta) => {
-                        const namespace = argv[0].value;
-                        argv[1].namespace = namespace;
+                        const property = argv[0].value;
+                        argv[1].property = property;
                         argv[1].value;
                         const name = argv[1].name;
-                        meta.ref = namespace.resolve(name);
+                        meta.ref = property.resolve(name);
                         return meta.ref.value;
                     },
                     ".", null, 0,
@@ -555,7 +555,7 @@ class config {
                     [1, ":", 1],
                     this.join.order.right,
                     (argv, meta) => {
-                        const namespace = meta.self.namespace;
+                        const property = meta.self.property;
                         argv[0].value;
                         const name = argv[0].name;
                         const value = {
@@ -563,10 +563,10 @@ class config {
                             type: argv[1].type
                         };
                         meta.type = this.types.control;
-                        if (namespace.include(name)) {
-                            namespace.set(name, value, false);
+                        if (property.include(name)) {
+                            property.set(name, value, false);
                         } else {
-                            namespace.declare(name, value, false);
+                            property.declare(name, value, false);
                         }
                         return undefined;
                     },
@@ -1027,6 +1027,7 @@ class config {
                     )
                 ),
             ],
+
             // リテラルとか
             [
                 new opdefine(
@@ -1146,10 +1147,10 @@ class config {
                     },
                     null,
                     (val, meta) => {
-                        const namespace = meta.self.namespace;
+                        const property = meta.self.property;
                         const name = val;
                         meta.name = val;
-                        meta.ref = namespace.resolve(name);
+                        meta.ref = property.resolve(name);
                         if (meta.ref) {
                             return meta.ref.value;
                         }
@@ -2068,16 +2069,16 @@ class interpretation {
         //this._starters;
     }
 
-    set namespace(val) {
-        this.meta.namespace = val;
+    set property(val) {
+        this.meta.property = val;
     }
 
-    get namespace() {
-        if (this.meta.namespace) {
-            return this.meta.namespace;
+    get property() {
+        if (this.meta.property) {
+            return this.meta.property;
         }
         if (this.parent) {
-            return this.parent.namespace;
+            return this.parent.property;
         }
         return undefined;
     }
@@ -3842,7 +3843,7 @@ class value {
     }
 }
 
-class namespace {
+class property {
     constructor(parent, global = true) {
         this._parent = parent;
         this._local = {};
