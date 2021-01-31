@@ -2222,7 +2222,19 @@ class interpretation {
         //this._starters;
     }
 
-
+    printtree(depth = 0) {
+        let blank = "┗━━";
+        for (let i = 0; i < depth; i++) {
+            blank = "      " + blank;
+        }
+        if (this.define.priority > 1) {
+            myconsole.log([blank + " ", "[" + this.first + "]"]);
+            depth++;
+        }
+        this.children.forEach((node) => {
+            node.printtree(depth);
+        });
+    }
 
     get rootnamespace() {
         return this.meta.rootnamespace || this.parent.childnamespace;
