@@ -929,19 +929,17 @@ class config {
                 new opdefine(
                     [1, "[", 1, "]"],
                     this.join.order.left,
-                    (argv) => {
-                        /*
-                        if (argv[1].op == ",") {
-                            return (() => {
-                                let elm = argv[0].value;
-                                for (let key in argv[1].value) {
-                                    elm = elm[key].value;
-                                }
-                                return elm;
-                            })();
+                    (argv, meta) => {
+                        if (argv[0].type == this.types.object) {
+                            const property = argv[0].value;
+                            argv[1].property = property;
+                            argv[1].value;
+                            const name = argv[1].name;
+                            meta.ref = property.resolve(name);
+                            return meta.ref.value;
+                        } else if (argv[0].type == this.types.array) {
+                            return argv[0].value[argv[1].value];
                         }
-                        */
-                        return argv[0].value[argv[1].value].value;
                     },
                     "[]", null, 0,
                     new typeset(
@@ -986,7 +984,8 @@ class config {
                 new opdefine(
                     ["[", 1, "]"],
                     this.join.order.left,
-                    (argv) => {
+                    (argv, meta) => {
+                        meta.type = this.types.array;
                         if (argv[0].type == this.types.parallel) {
                             return argv[0].value;
                         }
