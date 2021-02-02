@@ -3246,6 +3246,7 @@ class contexts {
                     lefttree = lefttree.lefttree;
                     left--;
                 } else if ((lefttree == adjacentleft) && (l.priority > interpretation.priority)) {
+                    // 本当はl.priority == interpretation.priorityと結合方向も検討しないといけないかと。今は眠い。
                     lefttree = lefttree.lefttree;
                     left--;
                 } else {
@@ -3264,6 +3265,7 @@ class contexts {
                     righttree = righttree.righttree;
                     right--;
                 } else if ((righttree == adjacentright) && (r.priority > interpretation.priority)) {
+                    // 本当はr.priority == interpretation.priorityと結合方向も検討しないといけないかと。今は眠い。
                     righttree = righttree.righttree;
                     right--;
                 } else {
