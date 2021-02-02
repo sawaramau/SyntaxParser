@@ -3,30 +3,8 @@ class config {
     constructor(opdefs) {
         this.join = new order();
         this.types = itemtype.types();
-        //this.calculator = calculator;
-        this.punctuation = (argv, meta) => {
-            for (let arg of argv) {
-                const val = arg.value;
-                if (
-                    arg.type == this.types.ret
-                    || arg.type == this.types.esc
-                    || arg.type == this.types.br
-                ) {
-                    meta.type = arg.type;
-                    return val;
-                }
-                meta.type = arg.meta.type;
-                if (
-                    arg.meta.type == this.types.ret
-                    || arg.meta.type == this.types.esc
-                    || arg.meta.type == this.types.br
-                ) {
-                    return val;
-                }
-            }
-            // return のない制御文の返り値は未定義
-            return undefined;
-        };
+
+        this.punctuations = ["\r\n", "\n", "\r", ";"];
 
         // *****同一の演算子の場合、項数の少ない演算子ほど優先度を高くすること*****
         // 例えば + 1 と 1 + 1 の場合、単項の方が優先度が高い
@@ -36,126 +14,8 @@ class config {
         // リテラルにせよ演算子にせよ、基本的な読み込みは『演算子として解釈可能な最長の単語』単位で行われる。
         this.opdefs = [
             // priority order
-            [
-                // 句読点
-                new opdefine(
-                    [1, "\n", 1],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        return this.punctuation(argv, meta);
-                    },
-                    "punctuation", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.control
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-                new opdefine(
-                    [1, "\r\n", 1],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        return this.punctuation(argv, meta);
-                    },
-                    "punctuation", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.control
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-
-                new opdefine(
-                    [1, ";", 1],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        return this.punctuation(argv, meta);
-                    },
-                    "punctuation", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.control
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-            ],
-            [
-                new opdefine(
-                    [1, ";"],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        return this.punctuation(argv, meta);
-                    },
-                    "punctuation", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.control
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-                new opdefine(
-                    [1, "\n"],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        return this.punctuation(argv, meta);
-                    },
-                    "punctuation", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.control
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-                new opdefine(
-                    [1, "\r\n"],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        return this.punctuation(argv, meta);
-                    },
-                    "punctuation", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.control
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-            ],
+            [ /* 句読点用空き優先度 */],
+            [ /* 句読点用空き優先度 */],
 
             // next priority group
             [
@@ -308,7 +168,7 @@ class config {
             [
                 new opdefine(
                     [1, "=", 1],
-                    this.join.order.left,
+                    this.join.order.right,
                     (argv, meta, self) => {
                         //argv[0].property = new property();
                         //meta.type = this.type.substitution;
@@ -1478,7 +1338,7 @@ class config {
                 ),
             ],
         ];
-        this.ops = new ops(opdefs || this.opdefs);
+        this.ops = new ops(opdefs || this.opdefs, this.punctuations);
     }
 
     // text : mystrクラス
@@ -2027,8 +1887,10 @@ class opdefine {
                 if ((typeof key) == "number") {
                     continue;
                 }
-                if (key.slice(0, text.length) == text) {
-                    return true;
+                if (typeof key == "string") {
+                    if (key.slice(0, text.length) == text) {
+                        return true;
+                    }
                 }
             }
         } else {
@@ -2079,14 +1941,19 @@ class opdefine {
             return this._first;
         }
         if (this._grammer instanceof Array) {
+            let first;
             if (this._grammer.length == 1) {
-                this._first = this.grammer[0];
-            }
-            for (let elm of this._grammer) {
-                if ((typeof elm) != "number") {
-                    this._first = elm;
-                    return elm;
+                first = this.grammer[0];
+            } else {
+                for (let elm of this._grammer) {
+                    if ((typeof elm) != "number") {
+                        first = elm;
+                        break;
+                    }
                 }
+            }
+            if (typeof first == "string") {
+                this._first = first;
             }
         }
         return this._first;
@@ -2232,10 +2099,10 @@ class interpretation {
         for (let i = 0; i < depth; i++) {
             blank += "    " + (i == depth - 1 ? "" : hist[i]);
         }
-        if (this.define.priority > -1) {
-            myconsole.log([" " + blank + branch, "[" + this.first.replace("\r\n", "\\r\\n") + "]"]);
+        //if (this.define.priority > -1) {
+            myconsole.log([" " + blank + branch, this.horizonal + "[" + this.first.replace(/(\r\n|\n|\r)/g, "\\r\\n") + "]"]);
             depth;
-        }
+        //}
 
         if (left.length) {
             hist[depth] = '\u001b[96m' + "┃" + '\u001b[0m';
@@ -3224,6 +3091,7 @@ class contexts {
     }
 
     retree(program) {
+        
         let nexter;
         const roots = program.filter(cur => {
             for (let def of cur) {
@@ -3350,7 +3218,9 @@ class contexts {
             // 各ツリーが左右に伸ばしうる残りの手数
             let left = interpretation.left;
             let right = interpretation.right;
-            let lefttree = interpretation.root.lefttree;
+            
+            const adjacentleft = interpretation.root.lefttree;
+            const adjacentright = interpretation.root.righttree;
             // 元々の意味が空白だった場合、自身のツリーを食える
             const prev = interpretation.previnterpretation;
             if (prev) {
@@ -3365,11 +3235,17 @@ class contexts {
                     }
                 }
             }
+            let lefttree = adjacentleft;
+            const l = adjacentleft ? adjacentleft.nodes.slice().sort((l, r) => { return r.horizonal - l.horizonal }).find(v => true) : {priority : 0};
+            const r = adjacentright ? adjacentright.nodes.slice().sort((l, r) => { return l.horizonal - r.horizonal }).find(v => true) : { priority: 0 };
             while (left > 0) {
                 if (!lefttree) {
                     break;
                 }
                 if (lefttree.priority >= interpretation.priority) {
+                    lefttree = lefttree.lefttree;
+                    left--;
+                } else if ((lefttree == adjacentleft) && (l.priority > interpretation.priority)) {
                     lefttree = lefttree.lefttree;
                     left--;
                 } else {
@@ -3379,12 +3255,15 @@ class contexts {
             if (left > 1) {
                 return false;
             }
-            let righttree = interpretation.root.righttree;
+            let righttree = adjacentright;
             while (right > 0) {
                 if (!righttree) {
                     break;
                 }
                 if (righttree.priority >= interpretation.priority) {
+                    righttree = righttree.righttree;
+                    right--;
+                } else if ((righttree == adjacentright) && (r.priority > interpretation.priority)) {
                     righttree = righttree.righttree;
                     right--;
                 } else {
@@ -3398,17 +3277,15 @@ class contexts {
                 return true;
             }
             if (left * right == 0 && left + right == 1 && interpretation.priority <= interpretation.root.priority) {
-                if (left && interpretation.root.lefttree) {
-                    const tree = interpretation.root.lefttree.nodes;
+                if (left && adjacentleft) {
                     // 左のツリーの右側の要素の優先度より低いならば入り込める
-                    const l = tree.slice().sort((l, r) => { return r.horizonal - l.horizonal }).find(v => true);
+                    
                     if (l && interpretation.priority < l.priority) {
                         return true;
                     }
-                } else if (right && interpretation.root.righttree) {
-                    const tree = interpretation.root.righttree.nodes;
+                } else if (right && adjacentright) {
                     // 右のツリーの左側の要素の優先度より低いならば入り込める
-                    const r = tree.slice().sort((l, r) => { return l.horizonal - r.horizonal }).find(v => true);
+                    
                     if (r && interpretation.priority < r.priority) {
                         return true;
                     }
@@ -3696,8 +3573,8 @@ class contexts {
                         // 次の探索範囲は少なくともその親以降とする
                         i = Math.abs(neighbor.root.horizonal - self.horizonal) - 1 > i ?
                             Math.abs(neighbor.root.horizonal - self.horizonal) - 1 : i;
-
                         break;
+                    //} else if ((self.priority == 0) && (neighbor.priority > 1) && (step == 1)) {
                     } else {
                         // 要素をセット（多分できると思っているけれど、出来なかったら関数がはじく予定）
                         if (step == -1) {
@@ -3790,11 +3667,24 @@ class contexts {
 
     context(keyword) {
         const current = this.current(keyword);
+
         if (current.length) {
             return current;
         }
         let open = false;
         const reserved = [];
+        if (this._punctuations.test(keyword)) {
+            const def2 = this._ops.makepunctuations(1, keyword, 1);
+            def2.priority = 0;
+            const op2 = def2.make(keyword);
+            current.push(op2);
+            reserved.push(op2);
+            const def1 = this._ops.makepunctuations(1, keyword, 0);
+            def1.priority = 1;
+            const op1 = def1.make(keyword);
+            current.push(op1);
+            reserved.push(op1);
+        }
         for (let define of this._constant) {
             if (define.firstmatch(keyword)) {
                 const op = define.make(keyword);
@@ -3827,6 +3717,7 @@ class contexts {
             const contexts = this._temporary[index].contexts;
             const closed = this._temporary[index].closed;
             if (keyword in contexts) {
+
                 const nexters = contexts[keyword].context.sort((l, r) => {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
@@ -3879,6 +3770,8 @@ class contexts {
     constructor(config) {
         this.config = config;
         this._constant = config.ops.constant;   // [opdefine, opdefine,]
+        this._punctuations = config.ops.punctuations;
+        this._ops = config.ops;
         this._temporary = []; // [[interpretation2], [interpretation2, interpretation2]]
         this._program = []; // [[interpretation2], [interpretation2, interpretation2]]
     }
@@ -4003,11 +3896,23 @@ class ops {
         }
         return this._all;
     }
+
     match(word, defines = null) {
         if (defines == null) {
             defines = this.constant;
+        } else {
+            
         }
         const match = [];
+        
+        if (this.punctuations.test(word)) {
+            const def2 = this.makepunctuations(1, word, 1);
+            const def1 = this.makepunctuations(1, word, 0);
+            def2.priority = 0;
+            def1.priority = 1;
+            match.push(def2);
+            match.push(def1);
+        }
         for (let define of defines) {
             if (define.match(word)) {
                 match.push(define);
@@ -4028,14 +3933,43 @@ class ops {
         return this._undefined;
     }
 
-    constructor(opdefines) {
+    constructor(opdefines, punctuations) {
         // opdefines: [               priority
         //    [opdefine, opdefine],     low
         //    [opdefine],                |
         //    [opdefine],               high
         // ];
+        this.join = new order();
+        this.types = itemtype.types();
         this.opdefines = opdefines;
+        const reg = /(\.|\*|\+|\^|\||\[|\]|\(|\)|\?|\$|\{|\})/;
+        const regt = "^(" + punctuations.map(v => v.replace(reg, "\\$&")).join("|") + ")+$"
+        this.punctuations = new RegExp(regt);
+        this.puncorg = punctuations;
         let priority = 0;
+        this.punctuation = (argv, meta) => {
+            for (let arg of argv) {
+                const val = arg.value;
+                if (
+                    arg.type == this.types.ret
+                    || arg.type == this.types.esc
+                    || arg.type == this.types.br
+                ) {
+                    meta.type = arg.type;
+                    return val;
+                }
+                meta.type = arg.meta.type;
+                if (
+                    arg.meta.type == this.types.ret
+                    || arg.meta.type == this.types.esc
+                    || arg.meta.type == this.types.br
+                ) {
+                    return val;
+                }
+            }
+            // return のない制御文の返り値は未定義
+            return undefined;
+        };
 
         for (let ops of opdefines) {
             for (let opdefine of ops) {
@@ -4046,6 +3980,29 @@ class ops {
             priority++;
         }
         this.validation();
+    }
+
+    makepunctuations(left, word, right) {
+        const def = new opdefine(
+            [left, word, right],
+            this.join.order.right,
+            (argv, meta) => {
+                return this.punctuation(argv, meta);
+            },
+            "punctuation", null, 0,
+            new typeset(
+                [
+                ],
+                [
+                    this.types.control
+                ],
+                [
+                ],
+                [
+                ],
+            )
+        );
+        return def;
     }
 }
 
