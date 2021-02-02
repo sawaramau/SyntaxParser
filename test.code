@@ -1,0 +1,11 @@
+
+var test = 1
+
+var test = 1
+test = test + 2
+var a, b = c = 2
+a =c+1
+if (0) {
+    return 1;
+}
+return a
