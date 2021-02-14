@@ -1,7 +1,6 @@
 const Calc = require("./calculator.js");
 const fs = require("fs")
 
-
 fs.readFile("test.code", "utf-8", (err, data) => {
     const text = data;
     const calc = new Calc.calculator(text);

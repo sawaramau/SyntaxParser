@@ -14,9 +14,6 @@ class config {
         // リテラルにせよ演算子にせよ、基本的な読み込みは『演算子として解釈可能な最長の単語』単位で行われる。
         this.opdefs = [
             // priority order
-            [ /* 句読点用空き優先度 */],
-            [ /* 句読点用空き優先度 */],
-
             // next priority group
             [
                 // 返り値系
@@ -38,8 +35,6 @@ class config {
                     )
                 ),
             ],
-
-
             // 宣言
             [
                 new opdefine(
@@ -422,6 +417,7 @@ class config {
             ],
 
 
+
             [
                 // 条件演算
                 new opdefine(
@@ -439,6 +435,7 @@ class config {
                             [this.types.control],
                         ],
                         [(args) => {
+                            return this.types.control;
                             args[0].value ? args[1].type : args[2].type;
                         }]
                     )
@@ -496,7 +493,6 @@ class config {
                     )
                 ),
             ],
-
             [
                 // 
                 new opdefine(
@@ -583,6 +579,7 @@ class config {
                         ],
                         [
                             (argv) => {
+                                return this.types.control;
                                 if (argv[0].value) {
                                     return argv[0].type;
                                 }
@@ -613,6 +610,7 @@ class config {
                         ],
                         [
                             (argv) => {
+                                return this.types.control;
                                 if (!argv[0].value) {
                                     return argv[0].type;
                                 }
@@ -927,6 +925,7 @@ class config {
                         ],
                         [
                             (argv) => {
+                                return this.types.control;
                                 if (argv[0].value(argv[1].value) === undefined) {
                                     return this.types.undef;
                                 }
@@ -963,6 +962,7 @@ class config {
                         ],
                         [
                             (argv) => {
+                                return this.types.control;
                                 return argv[0].value[argv[1].value].type;
                             }
                         ],
@@ -1162,7 +1162,7 @@ class config {
                         if (meta.set) {
                             meta.set(name);
                         }
-                        meta.name = val;
+                        meta.name = name;
                         meta.ref = property.resolve(name);
                         if (meta.ref) {
                             return meta.ref.value;
@@ -2682,6 +2682,9 @@ class interpretation {
     }
 
     get value() {
+        this.args.map(arg => {
+            arg.parent = this;
+        });
         return this.define.formula(this.args, this.meta, this);
     }
     get index() {
@@ -2765,6 +2768,7 @@ class interpretation {
         }
         return this._invalid = val;
     }
+
     set parent(val) {
         if (this._parent) {
             // _parent は産みの親なので忘れない
@@ -3139,6 +3143,7 @@ class contexts {
         if (roots.length == 1) {
             return roots;
         }
+
         let prev;
         const trees = roots.reduce((acc, cur) => {
             const root = cur;
@@ -3948,7 +3953,7 @@ class ops {
         const regt = "^(" + punctuations.map(v => v.replace(reg, "\\$&")).join("|") + ")+$"
         this.punctuations = new RegExp(regt);
         this.puncorg = punctuations;
-        let priority = 0;
+        let priority = 2;
         this.punctuation = (argv, meta) => {
             for (let arg of argv) {
                 const val = arg.value;
