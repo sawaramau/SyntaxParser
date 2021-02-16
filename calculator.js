@@ -1381,11 +1381,11 @@ class config {
                         }
                         
                         const last = (() => {
-                            if (ptr.slice(1, 2) == '\n') {
+                            if (ptr.slice(0, 1) == '\n') {
                                 return true;
                             }
                             if (ptr.last - ptr.start > 1) {
-                                return ptr.slice(1, 3) == '\r\n';
+                                return ptr.slice(0, 2) == '\r\n';
                             }
                             return false;
                         })();
