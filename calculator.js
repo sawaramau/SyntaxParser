@@ -1336,6 +1336,79 @@ class config {
                         ],
                     )
                 ),
+                new opdefine(
+                    (val, ptr) => {
+                        const len = val.length - 1;
+                        if (val == "/") {
+                            return true;
+                        } else if (len < 2) {
+                            return val == '/*';
+                        }
+                        const first = (val[0] + val[1]) == '/*';
+                        const last = ((val[len - 2] + val[len - 1]) == '*/');
+                        if (first) {
+                            return !last;
+                        }
+                        return false;
+                    },
+                    this.join.order.right,
+                    null,
+                    "space", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [
+                            this.types.blank
+                        ],
+                        [
+                        ],
+                        [
+                        ],
+                    )
+                ),
+                new opdefine(
+                    (val, ptr) => {
+                        const len = val.length - 1;
+                        if (len == 0) {
+                            return val == "/";
+                        }
+                        const first = (val[0] + val[1]) == '//';
+                        if (!first) {
+                            return false;
+                        }
+                        if (ptr.start >= ptr.last) {
+                            return false;
+                        }
+                        
+                        const last = (() => {
+                            if (ptr.slice(1, 2) == '\n') {
+                                return true;
+                            }
+                            if (ptr.last - ptr.start > 1) {
+                                return ptr.slice(1, 3) == '\r\n';
+                            }
+                            return false;
+                        })();
+                        if (first) {
+                            return !last;
+                        }
+                        return false;
+                    },
+                    this.join.order.right,
+                    null,
+                    "space", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [
+                            this.types.blank
+                        ],
+                        [
+                        ],
+                        [
+                        ],
+                    )
+                ),
             ],
         ];
         this.ops = new ops(opdefs || this.opdefs, this.punctuations);
@@ -1345,7 +1418,7 @@ class config {
     // テキストを先頭から読み込んで、最長の解釈が可能な演算子を取得
     getword(text) {
         let word = text.index(0);
-        let matched = this.ops.match(word);
+        let matched = this.ops.match(word, undefined, text);
         const result = {
             defines: [],
             keyword: "",
@@ -1358,7 +1431,7 @@ class config {
                 break;
             }
             word += text.index(0);
-            matched = this.ops.match(word, matched);
+            matched = this.ops.match(word, matched, text);
         };
         return result;
     }
@@ -1607,19 +1680,39 @@ class myenum {
 // 文字列操作用の自作クラス
 class mystr {
     constructor(str) {
-        this._value = str;
+        this.value = str;
     }
     set value(val) {
         this._value = val;
+        this.start = 0;
+        this.end = this.last;
     }
     get value() {
-        return this._value;
+        return this._value.slice(this.start, this.end);
     }
     get length() {
+        return this._end - this.start;
+    }
+    get last() {
         return this._value.length;
+    }
+    get end() {
+        return this._end;
+    }
+    set end(val) {
+        this._end = val;
+    }
+
+    get start () {
+        return this._start;
+    }
+    set start(val) {
+        this._start = val;
     }
 
     array() {
+        return;
+        // current no use
         const array = [];
         for (let i = 0; i < this.length; i++) {
             array.push(this.value[i]);
@@ -1628,18 +1721,26 @@ class mystr {
     }
 
     index(i) {
-        if (-1 < i && i < this.length) {
-            return this.value[i];
+        const index = i + this.start;
+        if (-1 < index && index < this.last) {
+            return this._value[index];
         }
         return null;
     }
     pop(len = 1) {
-        const tmp = this.value.slice(-len);
-        this.value = this.value.slice(0, -len);
+        // 末尾を取り出す
+        const tmp = this._value.slice(this.end - len, this.end);
+        this.end -= len;
         return tmp;
     }
     push(w) {
-        return this.value = this.value + w;
+        return;
+        // current no use
+        for(let i = 0; i < w.length; i++) {
+            this._value[this.end] = w[i];
+            this.end++;
+        }
+        return this.value;
     }
 
     shift(len = 1) {
@@ -1648,17 +1749,21 @@ class mystr {
             if (this.length == 0) {
                 break;
             }
-            const c = this.value[0];
-            this.value = this.slice(1);
+            const c = this._value[this.start];
+            this.start++;
             w += c;
         }
         return w;
     }
     unshift(w) {
-        return this.value = w + this.value;
+        // current no use
+        //return this.value = w + this.value;
     }
     slice(s, e) {
-        return this.value.slice(s, e);
+        const start = s >= 0 ? this.start + s : this.end + s;
+        const end = e === undefined ? this.end : (e >= 0 ? this.start + e: this.end + e);
+
+        return this._value.slice(start, end);
     }
     match(regexp) {
         return this.value.match(regexp);
@@ -1881,7 +1986,7 @@ class opdefine {
         return grammer;
     }
 
-    match(text) {
+    match(text, ptr) {
         if (this._grammer instanceof Array) {
             for (let key of this._grammer) {
                 if ((typeof key) == "number") {
@@ -1894,7 +1999,7 @@ class opdefine {
                 }
             }
         } else {
-            return this._grammer(text);
+            return this._grammer(text, ptr);
         }
         return false;
     }
@@ -1907,11 +2012,11 @@ class opdefine {
         return this._priority;
     }
     // 文法解釈用
-    firstmatch(word) {
+    firstmatch(word, ptr) {
         if (this._grammer instanceof Array) {
             return this.first == word;
         }
-        return this._grammer(word);
+        return this._grammer(word, ptr);
     }
 
     make(keyword) {
@@ -3018,6 +3123,12 @@ class context {
 
 // 式を読み込んで全体的な解釈をするクラス
 class contexts {
+    get ptr() {
+        return this._ptr;
+    }
+    set ptr(val) {
+        this._ptr = val;
+    }
     // 
     push(keyword) {
         const context = this.context(keyword).sort((l, r) => {
@@ -3693,7 +3804,7 @@ class contexts {
             reserved.push(op1);
         }
         for (let define of this._constant) {
-            if (define.firstmatch(keyword)) {
+            if (define.firstmatch(keyword, this.ptr)) {
                 const op = define.make(keyword);
                 if (op) {
                     current.push(op);
@@ -3904,11 +4015,9 @@ class ops {
         return this._all;
     }
 
-    match(word, defines = null) {
-        if (defines == null) {
+    match(word, defines, ptr) {
+        if (!defines) {
             defines = this.constant;
-        } else {
-            
         }
         const match = [];
         
@@ -3921,7 +4030,7 @@ class ops {
             match.push(def1);
         }
         for (let define of defines) {
-            if (define.match(word)) {
+            if (define.match(word, ptr)) {
                 match.push(define);
             }
         }
@@ -4161,7 +4270,7 @@ class calculator {
 
     parse() {
         this.result = new contexts(this.config);
-
+        this.result.ptr = this.text;
         while (this.text.length > 0) {
             const read = this.config.getword(this.text);
             this.result.push(read.keyword);
