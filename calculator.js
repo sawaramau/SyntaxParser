@@ -1275,43 +1275,6 @@ class config {
                 ),
             ],
             [
-                // 改行
-                new opdefine(
-                    ["\n"],
-                    this.join.order.right,
-                    null,
-                    "newline", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.blank
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-                new opdefine(
-                    ["\r\n"],
-                    this.join.order.right,
-                    null,
-                    "newline", null, 0,
-                    new typeset(
-                        [
-                        ],
-                        [
-                            this.types.blank
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-            ],
-            [
                 // 空白文字等
                 new opdefine(
                     (val) => {
@@ -3793,15 +3756,23 @@ class contexts {
         const reserved = [];
         if (this._punctuations.test(keyword)) {
             const def2 = this._ops.makepunctuations(1, keyword, 1);
-            def2.priority = 0;
+            def2.priority = -2;
             const op2 = def2.make(keyword);
             current.push(op2);
             reserved.push(op2);
+
             const def1 = this._ops.makepunctuations(1, keyword, 0);
-            def1.priority = 1;
+            def1.priority = -1;
             const op1 = def1.make(keyword);
             current.push(op1);
             reserved.push(op1);
+
+
+            const blankdef = this._ops.makeblank(keyword);
+            blankdef.priority = this._ops.maxpriority;
+            const blankop = blankdef.make(keyword);
+            current.push(blankop);
+            reserved.push(blankop);
         }
         for (let define of this._constant) {
             if (define.firstmatch(keyword, this.ptr)) {
@@ -4024,10 +3995,13 @@ class ops {
         if (this.punctuations.test(word)) {
             const def2 = this.makepunctuations(1, word, 1);
             const def1 = this.makepunctuations(1, word, 0);
-            def2.priority = 0;
-            def1.priority = 1;
+            const blank = this.makeblank(word);
+            def2.priority = -2;
+            def1.priority = -1;
+            blank.priority = this.maxpriority;
             match.push(def2);
             match.push(def1);
+            match.push(blank);
         }
         for (let define of defines) {
             if (define.match(word, ptr)) {
@@ -4062,7 +4036,7 @@ class ops {
         const regt = "^(" + punctuations.map(v => v.replace(reg, "\\$&")).join("|") + ")+$"
         this.punctuations = new RegExp(regt);
         this.puncorg = punctuations;
-        let priority = 2;
+        let priority = 0;
         this.punctuation = (argv, meta) => {
             for (let arg of argv) {
                 const val = arg.value;
@@ -4096,6 +4070,29 @@ class ops {
             priority++;
         }
         this.validation();
+    }
+    get maxpriority () {
+        return this.opdefines.length;
+    }
+
+    makeblank(word) {
+        return new opdefine(
+            [word],
+            this.join.order.right,
+            null,
+            "blank", null, 0,
+            new typeset(
+                [
+                ],
+                [
+                    this.types.blank
+                ],
+                [
+                ],
+                [
+                ],
+            )
+        )
     }
 
     makepunctuations(left, word, right) {
