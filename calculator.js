@@ -4001,9 +4001,7 @@ class ops {
         this.opdefines = opdefines;
         this.opdefines.unshift(punctuations.map(v => this.makepunctuations(1, v, 1)));
         this.opdefines.push(punctuations.map(v => this.makeblank(v)));
-        //const reg = /(\.|\*|\+|\^|\||\[|\]|\(|\)|\?|\$|\{|\})/;
-        //const regt = "^(" + punctuations.map(v => v.replace(reg, "\\$&")).join("|") + ")+$"
-        this.punctuations = punctuations//new RegExp(regt);
+        this.punctuations = punctuations;
         
         let priority = 0;
         this.punctuation = (argv, meta) => {
