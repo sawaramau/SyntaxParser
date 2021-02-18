@@ -4,7 +4,7 @@ class config {
         this.join = new order();
         this.types = itemtype.types();
 
-        this.punctuations = ["\r\n", "\n", "\r", ";"];
+        this.punctuations = ["\r\n", "\n", ";"];
 
         // *****同一の演算子の場合、項数の少ない演算子ほど優先度を高くすること*****
         // 例えば + 1 と 1 + 1 の場合、単項の方が優先度が高い
@@ -3754,26 +3754,6 @@ class contexts {
         }
         let open = false;
         const reserved = [];
-        if (this._punctuations.test(keyword)) {
-            const def2 = this._ops.makepunctuations(1, keyword, 1);
-            def2.priority = -2;
-            const op2 = def2.make(keyword);
-            current.push(op2);
-            reserved.push(op2);
-
-            const def1 = this._ops.makepunctuations(1, keyword, 0);
-            def1.priority = -1;
-            const op1 = def1.make(keyword);
-            current.push(op1);
-            reserved.push(op1);
-
-
-            const blankdef = this._ops.makeblank(keyword);
-            blankdef.priority = this._ops.maxpriority;
-            const blankop = blankdef.make(keyword);
-            current.push(blankop);
-            reserved.push(blankop);
-        }
         for (let define of this._constant) {
             if (define.firstmatch(keyword, this.ptr)) {
                 const op = define.make(keyword);
@@ -3859,8 +3839,6 @@ class contexts {
     constructor(config) {
         this.config = config;
         this._constant = config.ops.constant;   // [opdefine, opdefine,]
-        this._punctuations = config.ops.punctuations;
-        this._ops = config.ops;
         this._temporary = []; // [[interpretation2], [interpretation2, interpretation2]]
         this._program = []; // [[interpretation2], [interpretation2, interpretation2]]
     }
@@ -3992,17 +3970,6 @@ class ops {
         }
         const match = [];
         
-        if (this.punctuations.test(word)) {
-            const def2 = this.makepunctuations(1, word, 1);
-            const def1 = this.makepunctuations(1, word, 0);
-            const blank = this.makeblank(word);
-            def2.priority = -2;
-            def1.priority = -1;
-            blank.priority = this.maxpriority;
-            match.push(def2);
-            match.push(def1);
-            match.push(blank);
-        }
         for (let define of defines) {
             if (define.match(word, ptr)) {
                 match.push(define);
@@ -4032,10 +3999,12 @@ class ops {
         this.join = new order();
         this.types = itemtype.types();
         this.opdefines = opdefines;
-        const reg = /(\.|\*|\+|\^|\||\[|\]|\(|\)|\?|\$|\{|\})/;
-        const regt = "^(" + punctuations.map(v => v.replace(reg, "\\$&")).join("|") + ")+$"
-        this.punctuations = new RegExp(regt);
-        this.puncorg = punctuations;
+        this.opdefines.unshift(punctuations.map(v => this.makepunctuations(1, v, 1)));
+        this.opdefines.push(punctuations.map(v => this.makeblank(v)));
+        //const reg = /(\.|\*|\+|\^|\||\[|\]|\(|\)|\?|\$|\{|\})/;
+        //const regt = "^(" + punctuations.map(v => v.replace(reg, "\\$&")).join("|") + ")+$"
+        this.punctuations = punctuations//new RegExp(regt);
+        
         let priority = 0;
         this.punctuation = (argv, meta) => {
             for (let arg of argv) {
