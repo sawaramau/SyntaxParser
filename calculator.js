@@ -42,8 +42,56 @@ class config {
                     this.join.order.left,
                     (argv, meta, self) => {
                         argv[0].meta.declare = (name, value = 0) => {
-                            self.rootnamespace.declare(name, value, false)
+                            self.rootnamespace.declare(name, value, false, 'object')
                         };
+                        argv[0].meta.deftypename = 'object';
+                        argv[0].value;
+                        return undefined;
+                    },
+                    "{}", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [this.types.object],
+                        [
+                            [this.types.control],
+                        ],
+                        [
+                        ],
+                    )
+                ),
+
+                new opdefine(
+                    ["drop", 1],
+                    this.join.order.left,
+                    (argv, meta, self) => {
+                        argv[0].meta.declare = (name, value = 0) => {
+                            self.rootnamespace.declare(name, value, false, 'drop')
+                        };
+                        argv[0].meta.deftypename = 'drop';
+                        argv[0].value;
+                        return undefined;
+                    },
+                    "{}", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [this.types.object],
+                        [
+                            [this.types.control],
+                        ],
+                        [
+                        ],
+                    )
+                ),
+                new opdefine(
+                    ["drops", 1],
+                    this.join.order.left,
+                    (argv, meta, self) => {
+                        argv[0].meta.declare = (name, value = 0) => {
+                            self.rootnamespace.declare(name, value, false, 'drops')
+                        };
+                        argv[0].meta.deftypename = 'drops';
                         argv[0].value;
                         return undefined;
                     },
@@ -165,10 +213,20 @@ class config {
                     [1, "=", 1],
                     this.join.order.right,
                     (argv, meta, self) => {
-                        // left.ref.value = right.value
+                        const lefttype = argv[0].typename || meta.deftypename;
+                        const righttype = argv[1].typename;
+                        const val1 = (() => {
+                            const val = argv[1].value;
+                            if (lefttype.replace(righttype, "") == 's') {
+                                return Math.pow(2, val);
+                            }
+                            return val;
+                        })();
+
                         argv[1].meta.declare = meta.declare;
+                        argv[1].meta.deftypename = meta.deftypename;
                         const value = {
-                            value: argv[1].value,
+                            value: val1,
                             type: argv[1].type
                         };
                         if (meta.declare) {
@@ -2324,6 +2382,19 @@ class interpretation {
         hist[depth] = " ";
     }
 
+    get typename() {
+        const property = this.meta.property || this.rootnamespace;
+        const name = this._define.first;
+        if (!property) {
+            return undefined;
+        }
+        const ref = property.resolve(name);
+        if (ref) {
+            return ref.typename;
+        }
+        return undefined;
+    }
+
     get rootnamespace() {
         return this.meta.rootnamespace || this.parent.childnamespace;
     }
@@ -4211,9 +4282,17 @@ class ops {
 }
 
 class value {
-    constructor(val, constant) {
+    constructor(val, constant, typename = 'object') {
         this.value = val;
         this._constant = constant;
+        this.typename = typename;
+    }
+
+    get typename() {
+        return this._typename;
+    }
+    set typename(val) {
+        this._typename = val;
     }
 
     get constant() {
@@ -4284,12 +4363,12 @@ class property {
         return this.parent.include(name, global);
     }
 
-    declare(name, val, constant) {
+    declare(name, val, constant, typename) {
         if (name in this._local) {
             myconsole.programerror(name, "is already declared.");
         } else {
             
-            this._local[name] = new value(val, constant);
+            this._local[name] = new value(val, constant, typename);
         }
     }
 

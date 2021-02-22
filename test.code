@@ -1,10 +1,9 @@
-var ptmonsters = [
-    {attr:1, subattr:2, atk:1000},
-    {attr:2, subattr:1, atk:2000},
-    {attr:2, subattr:3, atk:1300},
-    {attr:1, subattr:5, atk:3000},
-    {attr:1, subattr:1, atk:2200},
-];
-var selectedindexes = [0, 2, 3];
-return ptmonsters[@selectedindexes]@attr [==] 1;
+drop fire = 0;
+drops firevector = fire;
+drop water = 1;
+drops watervector = water;
+drop tree = 2;
+drops treevector = tree;
+return [firevector, watervector, treevector];
+
 
