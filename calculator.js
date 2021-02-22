@@ -134,7 +134,7 @@ class config {
             [
                 // 区切り文字
                 new opdefine(
-                    [1, ",,,"], // ちょい除外中
+                    [1, ","],
                     this.join.order.left,
                     (argv, meta, self) => {
                         if (meta.declare) {
@@ -165,8 +165,7 @@ class config {
                     [1, "=", 1],
                     this.join.order.right,
                     (argv, meta, self) => {
-                        //argv[0].property = new property();
-                        //meta.type = this.type.substitution;
+                        // left.ref.value = right.value
                         argv[1].meta.declare = meta.declare;
                         const value = {
                             value: argv[1].value,
@@ -178,7 +177,11 @@ class config {
                             }
                         } else {
                             argv[0].meta.set = (name) => {
-                                self.rootnamespace.set(name, value)
+                                if (argv[0].property) {
+                                    argv[0].property.set(name, value);
+                                } else {
+                                    self.rootnamespace.set(name, value);
+                                }
                             };
                         }
                         
@@ -447,12 +450,16 @@ class config {
                 new opdefine(
                     [1, "?", 1],
                     this.join.order.left,
-                    (argv, meta) => {
+                    (argv, meta, self) => {
                         const space = argv[0].value;
                         if (!(space instanceof property)) {
                             return undefined;
                         }
                         argv[1].property = space;
+                        self.property = space;
+                        if (meta.set) {
+                            argv[1].meta.set = meta.set;
+                        }
                         argv[1].value;
                         const name = argv[1].name;
                         meta.ref = space.resolve(name);
@@ -473,10 +480,15 @@ class config {
                 new opdefine(
                     [1, ".", 1],
                     this.join.order.left,
-                    (argv, meta) => {
+                    (argv, meta, self) => {
                         const property = argv[0].value;
-                        argv[1].meta.isproperty = true;
+                        //argv[1].meta.isproperty = true;
                         argv[1].property = property;
+                        self.property = property;
+
+                        if (meta.set) {
+                            argv[1].meta.set = meta.set;
+                        }
                         //argv[1].value;
                         //const name = argv[1].name;
                         //meta.ref = property.resolve(name);
@@ -737,6 +749,24 @@ class config {
                         ],
                     )
                 ),
+
+                new opdefine(
+                    [1, "[==]", 1],
+                    this.join.order.left,
+                    (argv) => {
+                        const arr = argv[0].value;
+                        const val = argv[1].value;
+                        return arr.map(v => v == val);
+                    },
+                    "<=", null, 0,
+                    new typeset(
+                        [[this.types.number, this.types.number]],
+                        [this.types.number],
+                        [
+                            [this.types.control],
+                        ],
+                    )
+                ),
             ],
 
             [
@@ -898,6 +928,100 @@ class config {
                         ],
                     )
                 )
+            ],
+
+            [
+
+                new opdefine(
+                    [1, "[", "@", 1, "]"],
+                    this.join.order.left,
+                    (argv, meta) => {
+                        if (argv[0].type == this.types.object) {
+                            const property = argv[0].value;
+                            return argv[1].map(v => {
+                                v.property = property;
+                                return v.value;
+                            });
+                        } //else if (argv[0].type == this.types.array) {
+                        const arr = argv[0].value;
+                        return argv[1].value.map(v => arr[v]);
+                        //}
+                    },
+                    "[@]", null, 0,
+                    new typeset(
+                        [
+                            [this.types.ref, this.types.notunavailable]
+                        ],
+                        [this.types.delegate],
+                        [
+                            [this.types.control],
+                            [this.types.control],
+                        ],
+                        [
+                            (argv) => {
+                                return this.types.control;
+                                return argv[0].value[argv[1].value].type;
+                            }
+                        ],
+                    )
+                ),
+
+                new opdefine(
+                    [1, "{", "@", 1, "}"],
+                    this.join.order.left,
+                    (argv, meta) => {
+                        //if (argv[0].type == this.types.array) {
+                        const key = argv[1].value;
+                        return argv[0].value.map(v => v.value[key]);
+                        //}
+                    },
+                    "{@}", null, 0,
+                    new typeset(
+                        [
+                            [this.types.ref, this.types.notunavailable]
+                        ],
+                        [this.types.delegate],
+                        [
+                            [this.types.control],
+                            [this.types.control],
+                        ],
+                        [
+                            (argv) => {
+                                return this.types.control;
+                                return argv[0].value[argv[1].value].type;
+                            }
+                        ],
+                    )
+                ),
+
+                new opdefine(
+                    [1, "@", 1],
+                    this.join.order.left,
+                    (argv, meta) => {
+                        //if (argv[0].type == this.types.array) {
+                        argv[1].value;
+                        const key = argv[1].name;
+                        return argv[0].value.map(v => v.value[key]);
+                        //}
+                    },
+                    "{@}", null, 0,
+                    new typeset(
+                        [
+                            [this.types.ref, this.types.notunavailable]
+                        ],
+                        [this.types.delegate],
+                        [
+                            [this.types.control],
+                            [this.types.control],
+                        ],
+                        [
+                            (argv) => {
+                                return this.types.control;
+                                return argv[0].value[argv[1].value].type;
+                            }
+                        ],
+                    )
+                ),
             ],
             [
                 // operator
@@ -4122,6 +4246,10 @@ class property {
         this.nodeclaration = global; // trueのとき、宣言無しのsetはグローバル領域で覚える
     }
 
+    toString  () {
+        return this._local;
+    }
+
     get meta() {
         const meta = {
             type: itemtype.types().object,
@@ -4165,9 +4293,9 @@ class property {
         }
     }
 
-    set(name, value, strict = false) {
+    set(name, val, strict = false) {
         if (name in this._local) {
-            this._local[name].value = value;
+            this._local[name].value = val;
         } else if (!strict) {
             if (!this.nodeclaration || !this.parent) {
                 this._local[name] = new value(val, false);
@@ -4197,6 +4325,7 @@ class property {
         return undefined;
     }
 }
+
 
 // 計算機クラス
 class calculator {
