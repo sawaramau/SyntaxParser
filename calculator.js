@@ -66,7 +66,23 @@ class config {
                     this.join.order.left,
                     (argv, meta, self) => {
                         argv[0].meta.declare = (name, value = 0) => {
-                            self.rootnamespace.declare(name, value, false, 'drop')
+                            self.rootnamespace.declare(name, value, false, 'drop',
+                            // setter
+                            (self, newValue) => {
+                                const str2num = {
+                                    '火': 0,
+                                    '水': 1,
+                                    '木': 2,
+                                    '光': 3,
+                                    '闇': 4,
+                                };
+                                if (newValue.value in str2num) {
+                                    self.newValue = str2num[newValue.value];
+                                } else {
+                                    self.newValue = newValue.value;
+                                }
+
+                            })
                         };
                         argv[0].meta.deftypename = 'drop';
                         argv[0].value;
@@ -89,9 +105,41 @@ class config {
                     this.join.order.left,
                     (argv, meta, self) => {
                         argv[0].meta.declare = (name, value = 0) => {
-                            self.rootnamespace.declare(name, value, false, 'drops')
+                            self.rootnamespace.declare(name, value, false, 'drops', 
+                            // setter
+                            (self, newValue) => {
+                                if (newValue.typename == 'drop') {
+                                    self.newValue = Math.pow(2, newValue.value);
+                                } else {
+                                    self.newValue = newValue.value;
+                                }
+                            })
                         };
                         argv[0].meta.deftypename = 'drops';
+                        argv[0].value;
+                        return undefined;
+                    },
+                    "{}", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [this.types.object],
+                        [
+                            [this.types.control],
+                        ],
+                        [
+                        ],
+                    )
+                ),
+
+                new opdefine(
+                    ["attribute", 1],
+                    this.join.order.left,
+                    (argv, meta, self) => {
+                        argv[0].meta.declare = (name, value = 0) => {
+                            self.rootnamespace.declare(name, value, false, 'attribute')
+                        };
+                        argv[0].meta.deftypename = 'attribute';
                         argv[0].value;
                         return undefined;
                     },
@@ -213,21 +261,14 @@ class config {
                     [1, "=", 1],
                     this.join.order.right,
                     (argv, meta, self) => {
-                        const lefttype = argv[0].typename || meta.deftypename;
-                        const righttype = argv[1].typename;
-                        const val1 = (() => {
-                            const val = argv[1].value;
-                            if (lefttype.replace(righttype, "") == 's') {
-                                return Math.pow(2, val);
-                            }
-                            return val;
-                        })();
-
-                        argv[1].meta.declare = meta.declare;
+                        //argv[1].meta.declare = meta.declare;
                         argv[1].meta.deftypename = meta.deftypename;
+                        const val = argv[1].value;
+                        const t = argv[1].type;
                         const value = {
-                            value: val1,
-                            type: argv[1].type
+                            value: val,
+                            type: t,
+                            typename: argv[1].typename
                         };
                         if (meta.declare) {
                             argv[0].meta.declare = (name) => {
@@ -503,66 +544,6 @@ class config {
                 ),
             ],
 
-            [
-                // アクセサ
-                new opdefine(
-                    [1, "?", 1],
-                    this.join.order.left,
-                    (argv, meta, self) => {
-                        const space = argv[0].value;
-                        if (!(space instanceof property)) {
-                            return undefined;
-                        }
-                        argv[1].property = space;
-                        self.property = space;
-                        if (meta.set) {
-                            argv[1].meta.set = meta.set;
-                        }
-                        argv[1].value;
-                        const name = argv[1].name;
-                        meta.ref = space.resolve(name);
-                        if (meta.ref) {
-                            return meta.ref.value;
-                        }
-                        return undefined;
-                    },
-                    "?", null, 0,
-                    new typeset(
-                        [[this.types.ref, this.types.ref]],
-                        [this.types.ref],
-                        [
-                            [this.types.control],
-                        ]
-                    )
-                ),
-                new opdefine(
-                    [1, ".", 1],
-                    this.join.order.left,
-                    (argv, meta, self) => {
-                        const property = argv[0].value;
-                        //argv[1].meta.isproperty = true;
-                        argv[1].property = property;
-                        self.property = property;
-
-                        if (meta.set) {
-                            argv[1].meta.set = meta.set;
-                        }
-                        //argv[1].value;
-                        //const name = argv[1].name;
-                        //meta.ref = property.resolve(name);
-                        //return meta.ref.value;
-                        return argv[1].value;
-                    },
-                    ".", null, 0,
-                    new typeset(
-                        [[this.types.ref, this.types.ref]],
-                        [this.types.ref],
-                        [
-                            [this.types.control],
-                        ]
-                    )
-                ),
-            ],
             [
                 // 
                 new opdefine(
@@ -1128,9 +1109,11 @@ class config {
                             const name = argv[1].name;
                             meta.ref = property.resolve(name);
                             return meta.ref.value;
-                        } else if (argv[0].type == this.types.array) {
-                            return argv[0].value[argv[1].value];
                         }
+                        //console.log(argv[0].typename)
+                        //} else if (argv[0].type == this.types.array) {
+                        return argv[0].value[argv[1].value];
+                        //}
                     },
                     "[]", null, 0,
                     new typeset(
@@ -1151,6 +1134,69 @@ class config {
                     )
                 ),
             ],
+
+
+            [
+                // アクセサ
+                new opdefine(
+                    [1, "?", 1],
+                    this.join.order.left,
+                    (argv, meta, self) => {
+                        const space = argv[0].value;
+                        if (!(space instanceof property)) {
+                            return undefined;
+                        }
+                        argv[1].property = space;
+                        self.property = space;
+                        if (meta.set) {
+                            argv[1].meta.set = meta.set;
+                        }
+                        argv[1].value;
+                        const name = argv[1].name;
+                        meta.ref = space.resolve(name);
+                        if (meta.ref) {
+                            return meta.ref.value;
+                        }
+                        return undefined;
+                    },
+                    "?", null, 0,
+                    new typeset(
+                        [[this.types.ref, this.types.ref]],
+                        [this.types.ref],
+                        [
+                            [this.types.control],
+                        ]
+                    )
+                ),
+                new opdefine(
+                    [1, ".", 1],
+                    this.join.order.left,
+                    (argv, meta, self) => {
+                        const property = argv[0].value;
+                        //argv[1].meta.isproperty = true;
+                        argv[1].property = property;
+                        self.property = property;
+
+                        if (meta.set) {
+                            argv[1].meta.set = meta.set;
+                        }
+                        //argv[1].value;
+                        //const name = argv[1].name;
+                        //meta.ref = property.resolve(name);
+                        //return meta.ref.value;
+                        return argv[1].value;
+                    },
+                    ".", null, 0,
+                    new typeset(
+                        [[this.types.ref, this.types.ref]],
+                        [this.types.ref],
+                        [
+                            [this.types.control],
+                        ]
+                    )
+                ),
+            ],
+
             [
                 // values
                 // brackets
@@ -1201,6 +1247,30 @@ class config {
                         meta.type = this.types.object;
                         argv[0].value;
                         return argv[0].property
+                    },
+                    "{}", null, 0,
+                    new typeset(
+                        [
+                        ],
+                        [this.types.object],
+                        [
+                            [this.types.control],
+                        ],
+                        [
+                        ],
+                    )
+                ),
+            ],
+
+            [
+
+
+                new opdefine(
+                    ["{", "}"],
+                    this.join.order.left,
+                    (argv, meta) => {
+                        meta.type = this.types.object;
+                        return new property();
                     },
                     "{}", null, 0,
                     new typeset(
@@ -4282,10 +4352,18 @@ class ops {
 }
 
 class value {
-    constructor(val, constant, typename = 'object') {
+    constructor(val, constant, typename = 'object', setter = undefined) {
+        this.setter = setter;
         this.value = val;
         this._constant = constant;
         this.typename = typename;
+    }
+
+    get setter() {
+        return this._setter;
+    }
+    set setter(val){
+        this._setter = val;
     }
 
     get typename() {
@@ -4299,12 +4377,21 @@ class value {
         return this._constant;
     }
 
+    set newValue(val) {
+        this._value = val;
+    }
+    set newType(val) {
+        this._type = val;
+    }
+
     set value(val) {
         if (this.constant) {
             myconsole.programerror(name, "is constant.");
+        } else if (this.setter) {
+            this.setter(this, val);
         } else {
-            this._value = val.value;
-            this._type = val.type;
+            this.newValue = val.value;
+            this.newType = val.type;
         }
     }
 
@@ -4362,13 +4449,11 @@ class property {
         }
         return this.parent.include(name, global);
     }
-
-    declare(name, val, constant, typename) {
+    declare(name, val, constant, typename, setter) {
         if (name in this._local) {
             myconsole.programerror(name, "is already declared.");
         } else {
-            
-            this._local[name] = new value(val, constant, typename);
+            this._local[name] = new value(val, constant, typename, setter);
         }
     }
 

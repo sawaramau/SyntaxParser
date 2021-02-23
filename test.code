@@ -1,9 +1,4 @@
-drop fire = 0;
-drops firevector = fire;
-drop water = 1;
-drops watervector = water;
-drop tree = 2;
-drops treevector = tree;
-return [firevector, watervector, treevector];
+drop tree = '木';
+drops d = tree;
 
-
+return [tree, d];
