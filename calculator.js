@@ -75,13 +75,28 @@ class config {
                                     '木': 2,
                                     '光': 3,
                                     '闇': 4,
+                                    '回復': 5,
+                                    '回': 5,
+                                    'お邪魔': 6,
+                                    '邪': 6,
+                                    '毒': 7,
+                                    '猛毒': 8,
+                                    '猛': 8,
+                                    '爆弾': 9,
+                                    '爆': 9,
                                 };
                                 if (newValue.value in str2num) {
                                     self.newValue = str2num[newValue.value];
-                                } else {
+                                } else if (0 <= newValue.value && newValue.value < 10) {
                                     self.newValue = newValue.value;
+                                } else {
+                                    self.newValue = 0;
+                                    return {
+                                        error : 1,
+                                        msg: 'drop is out of range.(variable:' + name + ')'
+                                    };
                                 }
-
+                                return {error : 0};
                             })
                         };
                         argv[0].meta.deftypename = 'drop';
@@ -163,10 +178,8 @@ class config {
                     ["return"],
                     this.join.order.right,
                     (argv, meta) => {
-                        () => {
-                            meta.type = this.types.ret;
-                            return undefined;
-                        }
+                        meta.type = this.types.ret;
+                        return new interpretation(this.ops.undefined);
                     },
                     "return", null, 0,
                     new typeset(
@@ -181,10 +194,10 @@ class config {
                     ["break"],
                     this.join.order.right,
                     (argv, meta) => {
-                        () => {
+                        //() => {
                             meta.type = this.types.br;
                             return undefined;
-                        }
+                        //}
                     },
                     "break", null, 0,
                     new typeset(
@@ -485,9 +498,6 @@ class config {
                     ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
                     this.join.order.right,
                     (argv, meta) => {
-                        if (this.cnt === undefined) {
-                            this.cnt = 0;
-                        }
                         meta.type = this.types.control;
                         for (argv[0].value; argv[1].value; argv[2].value) {
                             const r = argv[3].value;
@@ -497,10 +507,6 @@ class config {
                                 meta.type = this.types.ret;
                                 return r;
                             }
-                            if (this.cnt > 5) {
-                                break;
-                            }
-                            this.cnt++;
                         }
                         return undefined;
                     },
@@ -2872,7 +2878,14 @@ class interpretation {
     }
 
     get others() {
+        // 【優先度について】
+        // priorityは例えば空白文字が一番高く、文末表現が一番低い
+        // 同じ演算子の単項演算子と多項演算子であれば、項数の少ない解釈ほどpriorityは高い（1+1より+1の方がpriorityが高い）
+        // ただしpriorityが高いとは検証順序の優先度であって、採用の優先度ではない。
+        // priorityの高い解釈は項数の少なさから成立しやすいが、priorityは低いが成立する解釈があれば、それは積極的に採用される。
+        // ここでは、ほかの解釈を変えずに自身の別解釈を採用した場合に、成立するかを検討する
         const others = [];
+        // roots: 自身の直系の親から根までの木構造を、自身より左手側か右手側かに分類したもの
         const roots = this.roots;
         const blank = this.type == itemtype.types().blank;
         const min = {};
@@ -2892,6 +2905,11 @@ class interpretation {
         });
 
         for (let def of this.context) {
+            // def: interpretation
+            const leftgeta = def.order == 0 ? 0.5 : 0; // 左結合
+            const rightgeta = def.order == 1 ? 0.5 : 0; // 右結合
+            const minleft = roots.left.length && (min.left.priority + leftgeta) < def.priority;
+            const minright = roots.right.length && (min.right.priority + rightgeta) < def.priority;
             if (!def) {
                 others.push(undefined);
             } else if (def.priority >= this.priority) {
@@ -2906,32 +2924,40 @@ class interpretation {
             } else if (def.define.left < this.define.left || def.define.right < this.define.right) {
                 // 左右の要素数が減るような解釈は使用不可
                 others.push(undefined);
-            } else if (blank && roots.left.length && roots.right.length && min.right.priority < this.priority && min.left.priority < this.priority) {
-                // 空白要素は左右両方に親がいる時、親を超えられない。
-                others.push(undefined);
+            //} else if (blank && minleft && minright) {
+            // 空白要素は左右両方に親がいる時、親を超えられない。
+            //    others.push(undefined);
             } else if (
-                roots.left.length && roots.right.length
-                && def.priority > min.left.priority && def.priority > min.right.priority
+                minleft && minright
             ) {
-                // 両サイドのルーツより高い優先度のとき、その解釈による拡張はできない <- 自身がルートならばできる
+                // ルーツの両側の最小優先度より高い優先度のとき、その解釈による拡張はできない
                 others.push(undefined);
-            } else if (roots.left.length && min.left.priority < def.priority && def.define.left > this.define.left) {
+            } else if (minleft && def.define.left > this.define.left) {
                 // 左に祖先が残っている時に、左に手を伸ばすことは出来ない
-                others.push(undefined);
-            } else if (roots.right.length && min.right.priority < def.priority && def.define.right > this.define.right) {
+                 others.push(undefined);
+            } else if (minright && def.define.right > this.define.right) {
                 // 右に祖先が残っている時に、右に手を伸ばすことは出来ない
                 others.push(undefined);
-            } else if (!blank && roots.left.length && !this.define.left && def.priority < max.left.priority) {
+            //} else if (roots.right.length && min.right.priority == def.priority && max.right.priority == def.priority) { // TODO
+                // 右側の最小要素と優先度が等しいとき、
+            //    others.push(undefined);
+            //} else if (roots.left.length && min.left.priority == def.priority && max.left.priority == def.priority) { // TODO
+            //    others.push(undefined);
+            } else if (!blank && roots.left.length && !this.define.left && def.priority < max.left.priority + leftgeta) {
                 // 自身が空白要素でなければ、自身が左手側に子要素を持たない時、左手側の親要素を越える事は出来ない
+                // （自身を子としていた親要素が子を失う）
                 others.push(undefined);
-            } else if (!blank && roots.right.length && !this.define.right && def.priority < max.right.priority) {
+            } else if (!blank && roots.right.length && !this.define.right && def.priority < max.right.priority + rightgeta) {
                 // 自身が空白要素でなければ、自身が右手側に子要素を持たない時、右手側の親要素を越える事は出来ない
+                // （自身を子としていた親要素が子を失う）
                 others.push(undefined);
                 // 以下の検討はfirst要素の探索時に実行している
                 //} else if (def.define.left > this.index) {
                 //    others.push(undefined);
                 //} else if (def.define.right + this.index >= this.program.length) {
                 //    others.push(undefined);
+            
+
             } else {
                 others.push(def);
             }
@@ -3562,37 +3588,42 @@ class contexts {
             // 各ツリーが左右に伸ばしうる残りの手数
             let left = interpretation.left;
             let right = interpretation.right;
-            
+
+            // 真隣の木
             const adjacentleft = interpretation.root.lefttree;
             const adjacentright = interpretation.root.righttree;
+            const geta = {};
+            geta.left = interpretation.order == 0 ? 0.5 : 0;
+            geta.right = interpretation.order == 1 ? 0.5 : 0;
             // 元々の意味が空白だった場合、自身のツリーを食える
             const prev = interpretation.previnterpretation;
             if (prev) {
                 const blank = prev.type == itemtype.types().blank;
                 if (blank) {
-                    if (interpretation.horizonal < prev.root.horizonal && prev.root.priority >= interpretation.priority) {
+                    if (interpretation.horizonal < prev.root.horizonal && prev.root.priority + geta.right > interpretation.priority) {
                         // 元の木の根の左側にいるので、右手で自身の根を掴める
                         right--;
-                    } else if (interpretation.horizonal > prev.root.horizonal && prev.root.priority >= interpretation.priority) {
+                    } else if (interpretation.horizonal > prev.root.horizonal && prev.root.priority + geta.left > interpretation.priority) {
                         // 元の木の根の右側にいるので、左手で自身の根を掴める
                         left--;
                     }
                 }
             }
             let lefttree = adjacentleft;
-            const l = adjacentleft ? adjacentleft.nodes.slice().sort((l, r) => { return r.horizonal - l.horizonal }).find(v => true) : {priority : 0};
-            const r = adjacentright ? adjacentright.nodes.slice().sort((l, r) => { return l.horizonal - r.horizonal }).find(v => true) : { priority: 0 };
+            // 『真隣の木の中』で一番自身に近いノード
+            const l = adjacentleft ? adjacentleft.nodes.slice().sort((l, r) => { return r.horizonal - l.horizonal }).find(v => true) : {priority : -1};
+            const r = adjacentright ? adjacentright.nodes.slice().sort((l, r) => { return l.horizonal - r.horizonal }).find(v => true) : { priority: -1 };
             while (left > 0) {
                 if (!lefttree) {
                     break;
                 }
-                if (lefttree.priority >= interpretation.priority) {
+                if (lefttree.priority + geta.left >= interpretation.priority) {
                     lefttree = lefttree.lefttree;
                     left--;
-                } else if ((lefttree == adjacentleft) && (l.priority > interpretation.priority)) {
+                } else if ((lefttree == adjacentleft) && (l.priority + geta.left > interpretation.priority)) {
                     // 本当はl.priority == interpretation.priorityと結合方向も検討しないといけないかと。今は眠い。
                     lefttree = lefttree.lefttree;
-                    left--;
+                    left--; // 
                 } else {
                     break;
                 }
@@ -3605,10 +3636,10 @@ class contexts {
                 if (!righttree) {
                     break;
                 }
-                if (righttree.priority >= interpretation.priority) {
+                if (righttree.priority + geta.right >= interpretation.priority) {
                     righttree = righttree.righttree;
                     right--;
-                } else if ((righttree == adjacentright) && (r.priority > interpretation.priority)) {
+                } else if ((righttree == adjacentright) && (r.priority + geta.right > interpretation.priority)) {
                     // 本当はr.priority == interpretation.priorityと結合方向も検討しないといけないかと。今は眠い。
                     righttree = righttree.righttree;
                     right--;
@@ -3622,17 +3653,17 @@ class contexts {
             if (left == 0 && right == 0) {
                 return true;
             }
-            if (left * right == 0 && left + right == 1 && interpretation.priority <= interpretation.root.priority) {
+            geta.root = interpretation.horizonal < interpretation.root.horizonal ? geta.right : geta.left;
+            if (left * right == 0 && left + right == 1 && interpretation.priority <= interpretation.root.priority + geta.root) {
                 if (left && adjacentleft) {
                     // 左のツリーの右側の要素の優先度より低いならば入り込める
-                    
-                    if (l && interpretation.priority < l.priority) {
+                    if (l && interpretation.priority < l.priority + geta.left) {
                         return true;
                     }
                 } else if (right && adjacentright) {
                     // 右のツリーの左側の要素の優先度より低いならば入り込める
                     
-                    if (r && interpretation.priority < r.priority) {
+                    if (r && interpretation.priority < r.priority + geta.right) {
                         return true;
                     }
                 }
@@ -4330,7 +4361,7 @@ class ops {
     makepunctuations(left, word, right) {
         const def = new opdefine(
             [left, word, right],
-            this.join.order.right,
+            this.join.order.left,
             (argv, meta) => {
                 return this.punctuation(argv, meta);
             },
