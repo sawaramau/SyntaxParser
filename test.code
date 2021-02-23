@@ -1,4 +1,1 @@
-drop tree = '木';
-drops d = tree;
-
-return [tree, d];
+c=[1];[1];return

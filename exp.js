@@ -1,6 +1,5 @@
 const Calc = require("./calculator.js");
-const fs = require("fs")
-
+const fs = require("fs");
 
 
 fs.readFile("test.code", "utf-8", (err, data) => {
@@ -11,8 +10,8 @@ fs.readFile("test.code", "utf-8", (err, data) => {
     console.log("-------------   calc1   -------------");
     console.log(text);
     console.log(calc.return().value);
-    //console.log("--------Parsed tree---------");
-    //ret[0].printtree();
+    console.log("--------Parsed tree---------");
+    ret[0].printtree();
     console.log();
 })
 
