@@ -1,1 +1,14 @@
-c=[1];[1];return
+var ui = {};
+var common = {
+  pt:{
+    monsters : [{attr: 1}, {attr: 2}, {attr: 3}, {attr: 4}, {attr: 5}, {attr: 6}]
+  }
+};
+ui.common = common;
+
+var calculation = {};
+calculation.target = [1,2];
+ui.calculation = calculation;
+attribute attr = 3;
+
+return hit
