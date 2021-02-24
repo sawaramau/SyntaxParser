@@ -2951,9 +2951,9 @@ class interpretation {
             } else if (def.define.left < this.define.left || def.define.right < this.define.right) {
                 // 左右の要素数が減るような解釈は使用不可
                 others.push(undefined);
-            //} else if (blank && minleft && minright) {
-            // 空白要素は左右両方に親がいる時、親を超えられない。
-            //    others.push(undefined);
+            } else if (blank && roots.left.length && roots.right.length) {
+                // 空白要素は左右両方に親がいる時、再解釈不可。
+                others.push(undefined);
             } else if (
                 minleft && minright
             ) {
@@ -3609,7 +3609,7 @@ class contexts {
             }
             return l.horizonal - r.horizonal;
         });
-
+        
         const first = reordered.find((interpretation) => {
             // interpretationはnewprogram作成時に作った仮想の演算子
             // 各ツリーが左右に伸ばしうる残りの手数
@@ -3620,8 +3620,8 @@ class contexts {
             const adjacentleft = interpretation.root.lefttree;
             const adjacentright = interpretation.root.righttree;
             const geta = {};
-            geta.left = interpretation.order == 0 ? 0.5 : 0;
-            geta.right = interpretation.order == 1 ? 0.5 : 0;
+            geta.left = interpretation.order == this.config.join.order.left ? 0.5 : 0;
+            geta.right = interpretation.order == this.config.join.order.right ? 0.5 : 0;
             // 元々の意味が空白だった場合、自身のツリーを食える
             const prev = interpretation.previnterpretation;
             if (prev) {

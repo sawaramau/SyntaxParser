@@ -1,17 +1,6 @@
-var ui = {};
-var common = {
-  pt:{
-    monsters:[{attr: 1}, {attr: 2}, {attr: 3}, {attr: 4}, {attr: 5}, {attr: 6}],
-  },
-};
-ui.common = common;
 
-var calculation = {};
-calculation.target = [1, 2];
-ui.calculation = calculation;
 
-attribute attr = 3;
-
-hit = ui.common.pt.monsters[@ui.calculation.target]@attr [==] attr;
-
-return hit;
+[1];
+[1]
+[1];
+[1];
