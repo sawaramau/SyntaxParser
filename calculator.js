@@ -1075,6 +1075,7 @@ class config {
                     )
                 ),
             ],
+            // ドットアクセス
             [
 
                 new opdefine(
@@ -1183,7 +1184,6 @@ class config {
                             meta.ref = property.resolve(name);
                             return meta.ref.value;
                         }
-                        //console.log(argv[0].typename)
                         //} else if (argv[0].type == this.types.array) {
                         return argv[0].value[argv[1].value];
                         //}
@@ -4322,7 +4322,7 @@ class ops {
         this.types = itemtype.types();
         this.opdefines = opdefines;
         this.opdefines.unshift(punctuations.map(v => this.makepunctuations(0, v)));
-        this.opdefines.unshift(punctuations.map(v => this.makepunctuations(1, v)));
+        this.opdefines.unshift(punctuations.concat(puncblanks).map(v => this.makepunctuations(1, v)));
         this.opdefines.unshift(punctuations.concat(puncblanks).map(v => this.makepunctuations(1, v, 1)));
         this.opdefines.push(puncblanks.map(v => this.makeblank(v)));
         this.puncblanks = puncblanks;
