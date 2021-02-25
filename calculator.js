@@ -1470,6 +1470,7 @@ class config {
 
                 new opdefine(
                     (val) => {
+                        // 文字列
                         const isEscape = (text, index) => {
                             let result = 0;
                             for (let i = index; i > 0; i--) {
@@ -4553,8 +4554,8 @@ class property {
 
 // 計算機クラス
 class calculator {
-    constructor(text, opdefs) {
-        this.config = new config(opdefs);
+    constructor(text, opdefs, punctuations, puncblanks) {
+        this.config = new config(opdefs, punctuations, puncblanks);
         if (text instanceof mystr) {
             this.text = text;
         } else {
