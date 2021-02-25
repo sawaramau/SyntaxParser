@@ -1,11 +1,11 @@
 // 演算子の定義など、解析器が必要とする基礎情報をまとめて保持するクラス
 class config {
-    constructor(opdefs) {
+    constructor(opdefs, punctuations, puncblanks) {
         this.join = new order();
         this.types = itemtype.types();
 
-        this.puncblanks = ["\r\n", "\n"]; // 空白または文末として解釈される文字群
-        this.punctuations = [';']; // 文末として解釈される文字群
+        this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
+        this.punctuations = punctuations || [';']; // 文末として解釈される文字群
 
         // *****同一の演算子の場合、項数の少ない演算子ほど優先度を高くすること*****
         // 例えば + 1 と 1 + 1 の場合、単項の方が優先度が高い
@@ -13,7 +13,7 @@ class config {
         // 現状ではインタプリタなどはないので、名前解決が必要な演算子や制御構文は解析のみで実行できない。
         // リテラルもここで定義する。詳しくはdecやstringの要素を確認
         // リテラルにせよ演算子にせよ、基本的な読み込みは『演算子として解釈可能な最長の単語』単位で行われる。
-        this.opdefs = [
+        this.opdefs = opdefs || [
             // priority order
             // next priority group
             [
@@ -1659,7 +1659,7 @@ class config {
                 ),
             ],
         ];
-        this.ops = new ops(opdefs || this.opdefs, this.punctuations, this.puncblanks);
+        this.ops = new ops(this.opdefs, this.punctuations, this.puncblanks);
     }
 
     // text : mystrクラス
@@ -4543,8 +4543,8 @@ class property {
         if (name in this._local) {
             return this._local[name];
         }
-        if (this.parent) {
-            return this.parent.rosolve(name);
+        if (this.parent instanceof property) {
+            return this.parent.resolve(name);
         }
         return undefined;
     }
@@ -4553,12 +4553,7 @@ class property {
 
 // 計算機クラス
 class calculator {
-    constructor(text, opdefs, globalspace) {
-        if (globalspace === undefined) {
-            this._namespace = new property();
-        } else {
-            this._namespace = globalspace;
-        }
+    constructor(text, opdefs) {
         this.config = new config(opdefs);
         if (text instanceof mystr) {
             this.text = text;
@@ -4571,8 +4566,16 @@ class calculator {
     get namespace() {
         return this._namespace;
     }
+    set namespace(val) {
+        this._namespace = val;
+    }
 
-    return() {
+    return(globalspace) {
+        if (globalspace === undefined) {
+            this.namespace = new property();
+        } else {
+            this.namespace = globalspace;
+        }
         const result = this.result.dependency();
         result[0].rootnamespace = this.namespace;
         if (result.length != 1) {
@@ -4605,5 +4608,9 @@ class calculator {
 
 module.exports = {
     itemtype,
+    order,
+    opdefine,
+    typeset,
+    property,
     calculator
 };
