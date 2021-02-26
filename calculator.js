@@ -1,6 +1,6 @@
 // 演算子の定義など、解析器が必要とする基礎情報をまとめて保持するクラス
 class config {
-    constructor(opdefs, punctuations, puncblanks) {
+    constructor(opdefs, punctuations, puncblanks, hooks) {
         this.join = new order();
         this.types = itemtype.types();
 
@@ -1660,7 +1660,7 @@ class config {
                 ),
             ],
         ];
-        this.ops = new ops(this.opdefs, this.punctuations, this.puncblanks);
+        this.ops = new ops(this.opdefs, this.punctuations, this.puncblanks, hooks);
     }
 
     // text : mystrクラス
@@ -4313,7 +4313,7 @@ class ops {
         return this._undefined;
     }
 
-    constructor(opdefines, punctuations, puncblanks) {
+    constructor(opdefines, punctuations, puncblanks, hooks) {
         // opdefines: [               priority
         //    [opdefine, opdefine],     low
         //    [opdefine],                |
@@ -4330,28 +4330,54 @@ class ops {
         this.punctuations = punctuations;
         
         let priority = 0;
-        this.punctuation = (argv, meta) => {
-            for (let arg of argv) {
-                const val = arg.value;
-                if (
-                    arg.type == this.types.ret
-                    || arg.type == this.types.esc
-                    || arg.type == this.types.br
-                ) {
-                    meta.type = arg.type;
-                    return val;
+        this.punctuation = (argv, meta, self) => {
+            if (hooks && hooks.alternative) {
+                return hooks.alternative(argv, meta, self, this.types);
+            } else {
+                let retValue = undefined;
+                let ret = false;
+                for (let arg of argv) {
+                    const val = arg.value;
+                    if (hooks && hooks.values) {
+                        hooks.values(val, arg.type, self, arg);
+                    }
+                    if (
+                        arg.type == this.types.ret
+                        || arg.type == this.types.esc
+                        || arg.type == this.types.br
+                    ) {
+                        meta.type = arg.type;
+                        retValue = val;
+                        ret = true;
+                        break;
+                    }
+                    meta.type = arg.meta.type;
+                    if (
+                        arg.meta.type == this.types.ret
+                        || arg.meta.type == this.types.esc
+                        || arg.meta.type == this.types.br
+                    ) {
+                        retValue = val;
+                        ret = true;
+                        break;
+                    }
                 }
-                meta.type = arg.meta.type;
-                if (
-                    arg.meta.type == this.types.ret
-                    || arg.meta.type == this.types.esc
-                    || arg.meta.type == this.types.br
-                ) {
-                    return val;
+                if (hooks) {
+                    if (hooks.punctuation) {
+                        hooks.punctuation(ret, retValue, meta.type, self);
+                    }
+                    if (meta.type == this.types.ret && hooks.return) {
+                        hooks.return(retValue, meta.type, self);
+                    }
+                    if (meta.type == this.types.esc && hooks.esc) {
+                        hooks.esc(retValue, meta.type, self);
+                    }
+                    if (meta.type == this.types.br && hooks.break) {
+                        hooks.break(retValue, meta.type, self);
+                    }
                 }
+                return retValue;
             }
-            // return のない制御文の返り値は未定義
-            return undefined;
         };
 
         for (let ops of opdefines) {
@@ -4392,8 +4418,8 @@ class ops {
         const def = new opdefine(
             [left, word, right],
             this.join.order.left,
-            (argv, meta) => {
-                return this.punctuation(argv, meta);
+            (argv, meta, self) => {
+                return this.punctuation(argv, meta, self);
             },
             "punctuation", null, 0,
             new typeset(
@@ -4554,8 +4580,8 @@ class property {
 
 // 計算機クラス
 class calculator {
-    constructor(text, opdefs, punctuations, puncblanks) {
-        this.config = new config(opdefs, punctuations, puncblanks);
+    constructor(text, opdefs, punctuations, puncblanks, hooks) {
+        this.config = new config(opdefs, punctuations, puncblanks, hooks);
         if (text instanceof mystr) {
             this.text = text;
         } else {

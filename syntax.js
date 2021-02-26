@@ -5,6 +5,30 @@ class csvconfig {
 
         this.join = new Calc.order();
         this.types = Calc.itemtype.types();
+        this.hooks = {};
+        let col = 0;
+        let row = 0;
+        this.hooks.alternative = (argv, meta, self, types) => {
+            const first = self.first;
+            if (argv.length > 0) {
+                const val1 = argv[0].value;
+                if (argv[0].type == 'element') {
+                    console.log(row, col, val1);
+                }
+            }
+            if (first == ',') {
+                col++;
+            } else {
+                row++;
+                col = 0;
+            }
+            if (argv.length == 2) {
+                const val2 = argv[1].value;
+                if (argv[1].type == 'element') {
+                    console.log(row, col, val2);
+                }
+            }
+        };
 
         this.punctuations = [',', '\r\n', '\n'];
         this.opdefs = [
@@ -51,42 +75,14 @@ class csvconfig {
                     },
                     null,
                     (val) => {
-                        let org = val.slice(1, val.length - 1);
-                        const escapes = [
-                            ["r", "\r"],
-                            ["\\", "\\"],
-                            ["n", "\n"],
-                            ["b", "\b"],
-                            ["t", "\t"],
-                            ["v", "\v"],
-                            ["'", "\'"],
-                            ['"', "\""],
-                            ["0", "\0"],
-                        ];
-                        let str = "";
-                        let cnt = 0;
-                        for (let i = 0; i + cnt < org.length; i++) {
-                            const c = org[i + cnt];
-                            if (c == "\\") {
-                                const e = escapes.find(v => v[0] == org[i + cnt + 1]);
-                                if (e) {
-                                    cnt++;
-                                    str += e[1];
-                                } else {
-                                    str += c;
-                                }
-                            } else {
-                                str += c;
-                            }
-                        }
-                        return str;
+                        return val.slice(1, -1).replace(/\"\"/g,'"');
                     },
                     "string", null, 0,
                     new Calc.typeset(
                         [
                         ],
                         [
-                            this.types.string
+                            'element'
                         ],
                         [
                         ],
@@ -109,42 +105,14 @@ class csvconfig {
                     },
                     null,
                     (val) => {
-                        let org = val.slice(1, val.length - 1);
-                        const escapes = [
-                            ["r", "\r"],
-                            ["\\", "\\"],
-                            ["n", "\n"],
-                            ["b", "\b"],
-                            ["t", "\t"],
-                            ["v", "\v"],
-                            ["'", "\'"],
-                            ['"', "\""],
-                            ["0", "\0"],
-                        ];
-                        let str = "";
-                        let cnt = 0;
-                        for (let i = 0; i + cnt < org.length; i++) {
-                            const c = org[i + cnt];
-                            if (c == "\\") {
-                                const e = escapes.find(v => v[0] == org[i + cnt + 1]);
-                                if (e) {
-                                    cnt++;
-                                    str += e[1];
-                                } else {
-                                    str += c;
-                                }
-                            } else {
-                                str += c;
-                            }
-                        }
-                        return str;
+                        return val;
                     },
                     "string", null, 0,
                     new Calc.typeset(
                         [
                         ],
                         [
-                            this.types.string
+                            'element'
                         ],
                         [
                         ],
