@@ -42,6 +42,5 @@ fs.readFile("test.code", "utf-8", (err, data) => {
         })
         console.log();
     })
-
 })
 

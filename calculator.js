@@ -195,10 +195,8 @@ class config {
                     ["break"],
                     this.join.order.right,
                     (argv, meta) => {
-                        //() => {
-                            meta.type = this.types.br;
-                            return undefined;
-                        //}
+                        meta.type = this.types.br;
+                        return undefined;
                     },
                     "break", null, 0,
                     new typeset(
@@ -511,7 +509,6 @@ class config {
                     [1, "=", 1],
                     this.join.order.right,
                     (argv, meta, self) => {
-                        //argv[1].meta.declare = meta.declare;
                         argv[1].meta.deftypename = meta.deftypename;
                         const val = argv[1].value;
                         const t = argv[1].type;
@@ -550,7 +547,6 @@ class config {
                 ),
             ],
 
-            // ここから
 
             [// 条件演算
                 
@@ -955,7 +951,6 @@ class config {
                     )
                 ),
             ],
-            // ここまで
 
             // 配列・辞書・関数
             [
@@ -994,10 +989,9 @@ class config {
                                 v.property = property;
                                 return v.value;
                             });
-                        } //else if (argv[0].type == this.types.array) {
+                        }
                         const arr = argv[0].value;
                         return argv[1].value.map(v => arr[v]);
-                        //}
                     },
                     "[@]", null, 0,
                     new typeset(
@@ -1022,10 +1016,8 @@ class config {
                     [1, "{", "@", 1, "}"],
                     this.join.order.left,
                     (argv, meta) => {
-                        //if (argv[0].type == this.types.array) {
                         const key = argv[1].value;
                         return argv[0].value.map(v => v.value[key]);
-                        //}
                     },
                     "{@}", null, 0,
                     new typeset(
@@ -1050,11 +1042,9 @@ class config {
                     [1, "@", 1],
                     this.join.order.left,
                     (argv, meta) => {
-                        //if (argv[0].type == this.types.array) {
                         argv[1].value;
                         const key = argv[1].name;
                         return argv[0].value.map(v => v.value[key]);
-                        //}
                     },
                     "{@}", null, 0,
                     new typeset(
@@ -1113,17 +1103,12 @@ class config {
                     this.join.order.left,
                     (argv, meta, self) => {
                         const property = argv[0].value;
-                        //argv[1].meta.isproperty = true;
                         argv[1].property = property;
                         self.property = property;
 
                         if (meta.set) {
                             argv[1].meta.set = meta.set;
                         }
-                        //argv[1].value;
-                        //const name = argv[1].name;
-                        //meta.ref = property.resolve(name);
-                        //return meta.ref.value;
                         return argv[1].value;
                     },
                     ".", null, 0,
@@ -1173,7 +1158,7 @@ class config {
                 ),
 
                 new opdefine(
-                    [1, "[", 1, "]"], // これと配列宣言の[]これが上手くかみ合ってない。
+                    [1, "[", 1, "]"],
                     this.join.order.left,
                     (argv, meta) => {
                         if (argv[0].type == this.types.object) {
@@ -1184,9 +1169,7 @@ class config {
                             meta.ref = property.resolve(name);
                             return meta.ref.value;
                         }
-                        //} else if (argv[0].type == this.types.array) {
                         return argv[0].value[argv[1].value];
-                        //}
                     },
                     "[]", null, 0,
                     new typeset(
@@ -2439,8 +2422,7 @@ class interpretation {
         this._offset = offset;
         this._leftblank = [];
         this._rightblank = [];
-        this._childblanktrees = []; // 
-        //this._starters;
+        this._childblanktrees = [];
     }
 
     printtree(hist = {}, depth = 0, color = 0) {
@@ -2453,10 +2435,8 @@ class interpretation {
         for (let i = 0; i < depth; i++) {
             blank += "    " + (i == depth - 1 ? "" : hist[i]);
         }
-        //if (this.define.priority > -1) {
-            myconsole.log([" " + blank + branch, this.horizonal + "[" + this.first.replace(/(\r\n|\n|\r)/g, "\\r\\n") + "]"]);
-            depth;
-        //}
+        myconsole.log([" " + blank + branch, this.horizonal + "[" + this.first.replace(/(\r\n|\n|\r)/g, "\\r\\n") + "]"]);
+        depth;
 
         if (left.length) {
             hist[depth] = '\u001b[96m' + "┃" + '\u001b[0m';
@@ -2966,11 +2946,6 @@ class interpretation {
             } else if (minright && def.define.right > this.define.right) {
                 // 右に祖先が残っている時に、右に手を伸ばすことは出来ない
                 others.push(undefined);
-            //} else if (roots.right.length && min.right.priority == def.priority && max.right.priority == def.priority) { // TODO
-                // 右側の最小要素と優先度が等しいとき、
-            //    others.push(undefined);
-            //} else if (roots.left.length && min.left.priority == def.priority && max.left.priority == def.priority) { // TODO
-            //    others.push(undefined);
             } else if (!blank && roots.left.length && !this.define.left && def.priority < max.left.priority + leftgeta) {
                 // 自身が空白要素でなければ、自身が左手側に子要素を持たない時、左手側の親要素を越える事は出来ない
                 // （自身を子としていた親要素が子を失う）
@@ -2979,13 +2954,6 @@ class interpretation {
                 // 自身が空白要素でなければ、自身が右手側に子要素を持たない時、右手側の親要素を越える事は出来ない
                 // （自身を子としていた親要素が子を失う）
                 others.push(undefined);
-                // 以下の検討はfirst要素の探索時に実行している
-                //} else if (def.define.left > this.index) {
-                //    others.push(undefined);
-                //} else if (def.define.right + this.index >= this.program.length) {
-                //    others.push(undefined);
-            
-
             } else {
                 others.push(def);
             }
@@ -3572,9 +3540,7 @@ class contexts {
                     int.root = def.root;
                     interpretations.push(int);
                 }
-                //if (interpretations.length) {
                 context.push(interpretations);
-                //}
             }
             acc.push(context);
             return acc;
@@ -3649,7 +3615,6 @@ class contexts {
                     lefttree = lefttree.lefttree;
                     left--;
                 } else if ((lefttree == adjacentleft) && (l.priority + geta.left > interpretation.priority)) {
-                    // 本当はl.priority == interpretation.priorityと結合方向も検討しないといけないかと。今は眠い。
                     lefttree = lefttree.lefttree;
                     left--; // 
                 } else {
@@ -3668,7 +3633,6 @@ class contexts {
                     righttree = righttree.righttree;
                     right--;
                 } else if ((righttree == adjacentright) && (r.priority + geta.right > interpretation.priority)) {
-                    // 本当はr.priority == interpretation.priorityと結合方向も検討しないといけないかと。今は眠い。
                     righttree = righttree.righttree;
                     right--;
                 } else {
@@ -3979,7 +3943,6 @@ class contexts {
                         i = Math.abs(neighbor.root.horizonal - self.horizonal) - 1 > i ?
                             Math.abs(neighbor.root.horizonal - self.horizonal) - 1 : i;
                         break;
-                    //} else if ((self.priority == 0) && (neighbor.priority > 1) && (step == 1)) {
                     } else {
                         // 要素をセット（多分できると思っているけれど、出来なかったら関数がはじく予定）
                         if (step == -1) {
@@ -4269,9 +4232,7 @@ class ops {
                 myconsole.implmenterror("Not considering pattern");
             });
             const nexters = first.filter(v => v.nexter !== undefined).map(v => v.nexter);
-            //if (nexters.length) {
             this.validation(nexters);
-            //}
         }
     }
 

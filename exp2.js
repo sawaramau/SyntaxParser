@@ -10,11 +10,8 @@ fs.readFile("csvtest.csv", "utf-8", (err, data) => {
     console.log();
     console.log("-------------   csv   -------------");
     console.log(text);
-    //console.log();
     console.log("-------------   parsed   -------------");
     calc.value;
-    //console.log("--------Parsed tree---------");
-    //ret[0].printtree();
     console.log();
 })
 
