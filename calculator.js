@@ -1,7 +1,7 @@
 // 演算子の定義など、解析器が必要とする基礎情報をまとめて保持するクラス
 class config {
     constructor(opdefs, punctuations, puncblanks, hooks) {
-        this.join = new order();
+        this.join = module.exports.join.orders;
         this.types = itemtype.types();
 
         this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
@@ -2941,8 +2941,8 @@ class interpretation {
 
         for (let def of this.context) {
             // def: interpretation
-            const leftgeta = def.order == 0 ? 0.5 : 0; // 左結合
-            const rightgeta = def.order == 1 ? 0.5 : 0; // 右結合
+            const leftgeta = def.order == module.exports.join.orders.left ? 0.5 : 0; // 左結合
+            const rightgeta = def.order == module.exports.join.orders.right ? 0.5 : 0; // 右結合
             const minleft = roots.left.length && (min.left.priority + leftgeta) < def.priority;
             const minright = roots.right.length && (min.right.priority + rightgeta) < def.priority;
             if (!def) {
@@ -4307,7 +4307,7 @@ class ops {
         //    [opdefine],                |
         //    [opdefine],               high
         // ];
-        this.join = new order();
+        this.join = module.exports.join.orders;
         this.types = itemtype.types();
         this.opdefines = opdefines;
         this.opdefines.unshift(punctuations.map(v => this.makepunctuations(0, v)));
@@ -4638,9 +4638,12 @@ class calculator {
 }
 
 module.exports = {
+    // 値定義
+    types: itemtype.types(),
+    join: { orders: new order() },
+    // クラス
+    console: myconsole,
     config,
-    itemtype,
-    order,
     opdefine,
     typeset,
     property,

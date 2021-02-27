@@ -2,9 +2,8 @@ const Calc = require("./calculator.js");
 
 class csvconfig {
     constructor() {
-
-        this.join = new Calc.order();
-        this.types = Calc.itemtype.types();
+        this.join = Calc.join.orders;
+        this.types = Calc.types;
         this.hooks = {};
         let col = 0;
         let row = 0;
@@ -148,5 +147,5 @@ class csvconfig {
 }
 
 module.exports = {
-    csvconfig
+    config : (new csvconfig()).config
 };
