@@ -1,5 +1,5 @@
 const Calc = require("./calculator.js");
-const syntax = require("./syntax.js");
+const syntax = require("./csvparser.js");
 const fs = require("fs");
 
 const config = new syntax.csvconfig();
