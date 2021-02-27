@@ -4600,18 +4600,16 @@ class calculator {
     }
 
     get namespace() {
+        if (this._namespace === undefined) {
+            this.namespace = new property();
+        }
         return this._namespace;
     }
     set namespace(val) {
         this._namespace = val;
     }
 
-    return(globalspace) {
-        if (globalspace === undefined) {
-            this.namespace = new property();
-        } else {
-            this.namespace = globalspace;
-        }
+    get value() {
         const result = this.result.dependency();
         result[0].rootnamespace = this.namespace;
         if (result.length != 1) {
@@ -4626,9 +4624,18 @@ class calculator {
             result[0].type == itemtype.types().ret
             || result[0].meta.type == itemtype.types().ret
         ) {
-            return val;
+            return val.value;
         }
-        return new interpretation(this.config.ops.undefined);
+        return new interpretation(this.config.ops.undefined).value;
+    }
+
+    return(globalspace) {
+        if (globalspace === undefined) {
+            this.namespace = new property();
+        } else {
+            this.namespace = globalspace;
+        }
+        return this.value;
     }
 
     parse() {
