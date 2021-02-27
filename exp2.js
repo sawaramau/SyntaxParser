@@ -1,16 +1,18 @@
-const Calc = require("./calculator.js");
-const syntax = require("./csvparser.js");
+const csv = require("./csvparser.js");
 const fs = require("fs");
 
-const config = syntax.config;
-const calc = new Calc.calculator(config);
+const parser = csv.parser;
+csv.delimiter = ','
+csv.processor = (val, col, row) => {
+    console.log(row, col, val);
+};
 fs.readFile("csvtest.csv", "utf-8", (err, data) => {
     const text = data.replace(/^\uFEFF/, ''); // bom remove
-    calc.code = text;
+    parser.code = text;
     console.log();
     console.log("-------------   csv   -------------");
     console.log(text);
     console.log("-------------   parsed   -------------");
-    calc.value;
+    parser.value;
     console.log();
 })
