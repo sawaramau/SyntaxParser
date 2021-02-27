@@ -4580,14 +4580,23 @@ class property {
 
 // 計算機クラス
 class calculator {
-    constructor(text, opdefs, punctuations, puncblanks, hooks) {
-        this.config = new config(opdefs, punctuations, puncblanks, hooks);
-        if (text instanceof mystr) {
-            this.text = text;
+    constructor(conf, code) {
+        this.config = conf || new config();
+        if (code !== undefined) {
+            this.code = code;
+        }
+    }
+
+    set code(val) {
+        if (val instanceof mystr) {
+            this._code = val;
         } else {
-            this.text = new mystr(text);
+            this._code = new mystr(val);
         }
         this.parse();
+    }
+    get code() {
+        return this._code;
     }
 
     get namespace() {
@@ -4624,9 +4633,9 @@ class calculator {
 
     parse() {
         this.result = new contexts(this.config);
-        this.result.ptr = this.text;
-        while (this.text.length > 0) {
-            const read = this.config.getword(this.text);
+        this.result.ptr = this.code;
+        while (this.code.length > 0) {
+            const read = this.config.getword(this.code);
             this.result.push(read.keyword);
         }
         return this.result;
@@ -4634,6 +4643,7 @@ class calculator {
 }
 
 module.exports = {
+    config,
     itemtype,
     order,
     opdefine,

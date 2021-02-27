@@ -143,9 +143,9 @@ class csvconfig {
                 ),
             ],
         ];
+        this.config = new Calc.config(this.opdefs, this.punctuations, [], this.hooks);
     }
 }
-
 
 module.exports = {
     csvconfig

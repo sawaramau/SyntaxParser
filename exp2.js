@@ -5,10 +5,10 @@ const fs = require("fs");
 const global = new Calc.property(undefined, false);
 const local = new Calc.property(global, false);
 const config = new syntax.csvconfig();
-
+const calc = new Calc.calculator(config.config);
 fs.readFile("csvtest.csv", "utf-8", (err, data) => {
     const text = data.replace(/^\uFEFF/, ''); // bom remove
-    const calc = new Calc.calculator(text, config.opdefs, config.punctuations, [], config.hooks);
+    calc.code = text;
     const ret = calc.result.dependency();
     console.log();
     console.log("-------------   csv   -------------");
