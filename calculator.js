@@ -18,9 +18,12 @@ class config {
             [
                 // 返り値系
                 new opdefine(
-                    ["return", 1],
+                    [(text, ptr) => {
+                        const key = 'return'.slice(0, text.length);
+                        return (text == key);
+                    }, 1],
                     this.join.order.right,
-                    (argv, meta) => {
+                    (argv, meta, self) => {
                         // 戻り値は型情報も含めて戻らないといけない
                         meta.type = this.types.ret;
                         return argv[0];
@@ -29,6 +32,42 @@ class config {
                     new typeset(
                         [],
                         [this.types.ret],
+                        [
+                            [this.types.control],
+                        ]
+                    )
+                ),
+            ],
+
+            // 返り値
+            [
+                new opdefine(
+                    ["return"],
+                    this.join.order.right,
+                    (argv, meta) => {
+                        meta.type = this.types.ret;
+                        return new interpretation(this.ops.undefined);
+                    },
+                    "return", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.ret],
+                        [
+                            [this.types.control],
+                        ]
+                    )
+                ),
+                new opdefine(
+                    ["break"],
+                    this.join.order.right,
+                    (argv, meta) => {
+                        meta.type = this.types.br;
+                        return undefined;
+                    },
+                    "break", null, 0,
+                    new typeset(
+                        [],
+                        [this.types.br],
                         [
                             [this.types.control],
                         ]
@@ -172,41 +211,6 @@ class config {
                 ),
             ],
 
-            // 返り値
-            [
-                new opdefine(
-                    ["return"],
-                    this.join.order.right,
-                    (argv, meta) => {
-                        meta.type = this.types.ret;
-                        return new interpretation(this.ops.undefined);
-                    },
-                    "return", null, 0,
-                    new typeset(
-                        [],
-                        [this.types.ret],
-                        [
-                            [this.types.control],
-                        ]
-                    )
-                ),
-                new opdefine(
-                    ["break"],
-                    this.join.order.right,
-                    (argv, meta) => {
-                        meta.type = this.types.br;
-                        return undefined;
-                    },
-                    "break", null, 0,
-                    new typeset(
-                        [],
-                        [this.types.br],
-                        [
-                            [this.types.control],
-                        ]
-                    )
-                ),
-            ],
 
 
             // エラーハンドリング
@@ -2164,7 +2168,7 @@ class order {
 // 命令定義用クラス
 class opdefine {
     constructor(grammer, order, formula, groupid, meta, root = 0, inouts = null) {
-        this._grammer = grammer;
+        this.grammer = grammer;
         this.order = order;
         this.formula = formula;
         if (typeof this._grammer == "function") {
@@ -2217,6 +2221,42 @@ class opdefine {
         return grammer;
     }
 
+    set grammer(val) {
+        this._grammer = val;
+        if (this._grammer instanceof Array) {
+            let first;
+            if (this._grammer.length == 1) {
+                first = this.grammer[0];
+            } else {
+                let index = 0;
+                for (let elm of this._grammer) {
+                    if ((typeof elm) != "number") {
+                        first = elm;
+                        this._firstindex = index;
+                        break;
+                    }
+                    index++;
+                }
+            }
+            if (typeof first == "string") {
+                this._first = first;
+            } else {
+                this.matchfunction = first;
+            }
+        } else {
+            this.matchfunction = val;
+        }
+    }
+    get matchfunction() {
+        return this._matchfunction;
+    }
+    set matchfunction(val) {
+        this._matchfunction = val;
+    }
+    get firstindex() {
+        return this._firstindex;
+    }
+
     match(text, ptr) {
         if (this._grammer instanceof Array) {
             for (let key of this._grammer) {
@@ -2225,6 +2265,10 @@ class opdefine {
                 }
                 if (typeof key == "string") {
                     if (key.slice(0, text.length) == text) {
+                        return true;
+                    }
+                } else {
+                    if (typeof key == "function" && key(text, ptr)) {
                         return true;
                     }
                 }
@@ -2244,15 +2288,28 @@ class opdefine {
     }
     // 文法解釈用
     firstmatch(word, ptr) {
-        if (this._grammer instanceof Array) {
+        if (this.matchfunction) {
+            return this.matchfunction(word, ptr);
+        } else {
             return this.first == word;
         }
-        return this._grammer(word, ptr);
+    }
+
+    clone(keyword) {
+        const grammer = this.firstindex === undefined ? [keyword] : this._grammer.map((v, i) => {
+            return i == this.firstindex ? keyword : v;
+        });
+        const def = new opdefine(grammer, this.order, (argv, meta, self) => {
+            self.operator = keyword;
+            return this.formula(argv, meta, self);
+        }, this.groupid, this.meta, this.root, this._inouts);
+        def.priority = this.priority;
+        return def;
     }
 
     make(keyword) {
         if (this._grammer instanceof Array) {
-            const int = new interpretation(this);
+            const int = new interpretation(this.clone(keyword));
             return int;
         }
         if (this.formula) {
@@ -2273,27 +2330,9 @@ class opdefine {
     }
 
     get first() {
-        if (this._first !== undefined) {
-            return this._first;
-        }
-        if (this._grammer instanceof Array) {
-            let first;
-            if (this._grammer.length == 1) {
-                first = this.grammer[0];
-            } else {
-                for (let elm of this._grammer) {
-                    if ((typeof elm) != "number") {
-                        first = elm;
-                        break;
-                    }
-                }
-            }
-            if (typeof first == "string") {
-                this._first = first;
-            }
-        }
         return this._first;
     }
+    
     get terms() {
         if (this._terms !== undefined) {
             return this._terms;
