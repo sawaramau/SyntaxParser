@@ -4076,9 +4076,7 @@ class contexts {
                     if (op.nexter) {
                         open = true;
                     }
-                    if (define.grammer instanceof Array) {
-                        reserved.push(op);
-                    }
+                    reserved.push(op);
                 }
             }
         }
