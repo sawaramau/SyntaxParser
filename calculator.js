@@ -2578,11 +2578,6 @@ class interpretation {
     set lefttree(val) {
         if (val) {
             this._lefttree = val;
-            /*{
-                horizonal: val.horizonal,
-                vertical: val.vertical
-            };
-            */
         }
     }
     get lefttree() {
@@ -2591,12 +2586,6 @@ class interpretation {
     set righttree(val) {
         if (val) {
             this._righttree = val;
-            /*
-            {
-                horizonal: val.horizonal,
-                vertical: val.vertical
-            };
-            */
         }
     }
     get righttree() {
@@ -4231,7 +4220,7 @@ class ops {
                 }
                 myconsole.implmenterror("Not considering pattern");
             });
-            const nexters = first.filter(v => v.nexter !== undefined).map(v => v.nexter);
+            const nexters = first.map(v => v.nexter).filter(v => v !== undefined);
             this.validation(nexters);
         }
     }
