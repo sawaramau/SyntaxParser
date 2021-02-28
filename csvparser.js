@@ -142,7 +142,7 @@ class csvconfig {
                 ),
             ],
         ];
-        this.config = new Calc.config(this.opdefs, this.punctuations, [], this.hooks);
+        this.config = new Calc.config(this.opdefs, this.punctuations, [], this.hooks, []);
     }
 
     isNewline(text, ptr) {

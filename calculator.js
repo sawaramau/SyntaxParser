@@ -1,6 +1,6 @@
 // 演算子の定義など、解析器が必要とする基礎情報をまとめて保持するクラス
 class config {
-    constructor(opdefs, punctuations, puncblanks, hooks) {
+    constructor(opdefs, punctuations, puncblanks, hooks, reserved) {
         this.join = module.exports.join.orders;
         this.types = itemtype.types();
         this.opdefine = (grammer, order, formula, groupid, meta, root = 0, inouts = null) => {
@@ -9,9 +9,11 @@ class config {
         this.typeset = (inputs, outputs, unavailables, delegates) => {
             return new typeset(inputs, outputs, unavailables, delegates);
         }
+        this.reserved = reserved || ['false', 'true', 'undefined', 'return'];
 
         this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
         this.punctuations = punctuations || [';']; // 文末として解釈される文字群
+        this.hooks = hooks || [];
 
         // *****同一の演算子の場合、項数の少ない演算子ほど優先度を高くすること*****
         // 例えば + 1 と 1 + 1 の場合、単項の方が優先度が高い
@@ -24,10 +26,7 @@ class config {
             [
                 // 返り値系
                 this.opdefine(
-                    [(text, ptr) => {
-                        const key = 'return'.slice(0, text.length);
-                        return (text == key);
-                    }, 1],
+                    ['return', 1],
                     this.join.order.right,
                     (argv, meta, self) => {
                         // 戻り値は型情報も含めて戻らないといけない
@@ -1417,20 +1416,15 @@ class config {
                     )
                 ),
                 this.opdefine(
-                    
-                        (val) => {
-                            const varreg = /^[a-zA-Z_][\w]*$/;
-                            if (val.match(varreg)) {
-                                return true;
-                            }
-                            return false;
-                        }
-                    ,
+                    (val, ptr) => {
+                        const varreg = /^[a-zA-Z_][\w]*$/;
+                        return val.match(varreg);
+                    },
                     null,
                     (val, meta, self) => {
 
                         const property = meta.property || self.rootnamespace;
-                        const name = val;
+                        const name = self.operator; //val;
                         if (meta.declare) {
                             meta.declare(name);
                         }
@@ -1611,6 +1605,9 @@ class config {
                 ),
                 this.opdefine(
                     (val, ptr) => {
+                        if (ptr === undefined) {
+                            return val.slice(0, 2) == '//';
+                        }
                         const len = val.length - 1;
                         if (len == 0) {
                             return val == "/";
@@ -1654,7 +1651,7 @@ class config {
                 ),
             ],
         ];
-        this.ops = new ops(this.opdefs, this.punctuations, this.puncblanks, hooks);
+        this.ops = new ops(this.opdefs, this.punctuations, this.puncblanks, this.hooks, this.reserved);
     }
 
     // text : mystrクラス
@@ -2193,9 +2190,6 @@ class opdefine {
     }
 
     get grammer() {
-        if (!(this._grammer instanceof Array)) {
-            return this._grammer;
-        }
         let grammer = [];
         let first, second = false;
         let f = 0;
@@ -2224,7 +2218,7 @@ class opdefine {
 
     set grammer(val) {
         if (!(val instanceof Array)) {
-            this._grammer = val;
+            this._grammer = [val];
             this._funcgrammer = true;
             this.matchfunction = val;
             this._firstindex = 0;
@@ -2264,24 +2258,33 @@ class opdefine {
         return this._firstindex;
     }
 
-    match(text, ptr) {
-        if (this._grammer instanceof Array) {
-            for (let key of this._grammer) {
-                if ((typeof key) == "number") {
-                    continue;
+    match(text, ptr, reserved) {
+        const futertext = (() => {
+            if (ptr === undefined) {
+                return undefined;
+            }
+            if (reserved.includes(text + ptr.index(1))) {
+                return text + ptr.slice(1, 3); // 次回に予約語と一致するならば、次々回についてまで考える
+            }
+            return undefined;
+        })();
+        for (let key of this._grammer) {
+            if ((typeof key) == "number") {
+                continue;
+            }
+            if (typeof key == "string") {
+                if (key.slice(0, text.length) == text) {
+                    return true;
                 }
-                if (typeof key == "string") {
-                    if (key.slice(0, text.length) == text) {
-                        return true;
-                    }
-                } else {
-                    if (typeof key == "function" && key(text, ptr)) {
+            } else {
+                
+                if (typeof key == "function") {
+                    const hit = key(text, ptr) && ((futertext === undefined) || key(futertext, ptr, true));
+                    if (hit) {
                         return true;
                     }
                 }
             }
-        } else {
-            return this._grammer(text, ptr);
         }
         return false;
     }
@@ -2294,9 +2297,11 @@ class opdefine {
         return this._priority;
     }
     // 文法解釈用
-    firstmatch(word, ptr) {
+    // 単語として確定した後なので、読み込み中のptrはない。
+    // 可変要素は予約語に成り得ない。
+    firstmatch(word, reserved) {
         if (this.matchfunction) {
-            return this.matchfunction(word, ptr);
+            return (!reserved && this.matchfunction(word));
         } else {
             return this.first == word;
         }
@@ -2321,6 +2326,7 @@ class opdefine {
         }
         if (this.formula) {
             const def = new opdefine([keyword], this.order, (argv, meta, self) => {
+                self.operator = keyword;
                 return this.formula(keyword, meta, self);
             }, this.groupid, this.meta, this.root, this._inouts);
             def.priority = this.priority;
@@ -2392,9 +2398,6 @@ class opdefine {
                 return undefined;
             }
             return this._nexter;
-        }
-        if (!(this.grammer instanceof Array)) {
-            return undefined;
         }
         const grammer = this._grammer.slice();
 
@@ -3804,7 +3807,6 @@ class contexts {
             }
             return l.horizonal - r.horizonal;
         });
-
         const start = interpretations.find(v => true).horizonal;
         const end = start + interpretations.length;
         const program = this.extraction(this.program, start, end);
@@ -3849,8 +3851,7 @@ class contexts {
 
         // contexts : 優先度毎にまとめた解釈群
         const contexts = this.reorder(program);
-        const completes = Array(program.length);
-        completes.fill(false);
+        const completes = program.map(v => false); 
         // 自身以上の優先度の解釈を近隣から探す
         for (let context of contexts) {
             this.minstruct(context, program, completes, start);
@@ -4081,16 +4082,14 @@ class contexts {
         let open = false;
         const reserved = [];
         for (let define of this._constant) {
-            if (define.firstmatch(keyword, this.ptr)) {
+            if (define.firstmatch(keyword, this.config.ops.reserved.includes(keyword))) {
                 const op = define.make(keyword);
                 if (op) {
                     current.push(op);
                     if (op.nexter) {
                         open = true;
                     }
-                    if (define.grammer instanceof Array) {
-                        reserved.push(op);
-                    }
+                    reserved.push(op);
                 }
             }
         }
@@ -4294,9 +4293,9 @@ class ops {
             defines = this.constant;
         }
         const match = [];
-        
+
         for (let define of defines) {
-            if (define.match(word, ptr)) {
+            if (define.match(word, ptr, this.reserved)) {
                 match.push(define);
             }
         }
@@ -4315,7 +4314,7 @@ class ops {
         return this._undefined;
     }
 
-    constructor(opdefines, punctuations, puncblanks, hooks) {
+    constructor(opdefines, punctuations, puncblanks, hooks, reserved) {
         // opdefines: [               priority
         //    [opdefine, opdefine],     low
         //    [opdefine],                |
@@ -4324,12 +4323,13 @@ class ops {
         this.join = module.exports.join.orders;
         this.types = itemtype.types();
         this.opdefines = opdefines;
-        this.opdefines.unshift(punctuations.map(v => this.makepunctuations(0, v)));
-        this.opdefines.unshift(punctuations.concat(puncblanks).map(v => this.makepunctuations(1, v)));
-        this.opdefines.unshift(punctuations.concat(puncblanks).map(v => this.makepunctuations(1, v, 1)));
-        this.opdefines.push(puncblanks.map(v => this.makeblank(v)));
-        this.puncblanks = puncblanks;
-        this.punctuations = punctuations;
+        this.puncblanks = puncblanks || [];
+        this.punctuations = punctuations || [];
+        this.reserved = reserved || []; // [string, sitring, ...]
+        this.opdefines.unshift(this.punctuations.map(v => this.makepunctuations(0, v)));
+        this.opdefines.unshift(this.punctuations.concat(this.puncblanks).map(v => this.makepunctuations(1, v)));
+        this.opdefines.unshift(this.punctuations.concat(this.puncblanks).map(v => this.makepunctuations(1, v, 1)));
+        this.opdefines.push(this.puncblanks.map(v => this.makeblank(v)));
         
         let priority = 0;
         this.punctuation = (argv, meta, self) => {

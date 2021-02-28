@@ -4,7 +4,8 @@
     "description": "",
     "main": "calcexe.js",
     "scripts": {
-        "test": "node example.js"
+        "test": "node example.js",
+        "exp": "node exp.js"
     },
     "author": "",
     "license": "MIT"
