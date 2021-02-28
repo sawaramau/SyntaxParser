@@ -5,17 +5,17 @@ const global = new Calc.property(undefined, false);
 const local = new Calc.property(global, false);
 
 const calc = new Calc.calculator();
+calc.namespace = global;
+
 fs.readFile("test.code", "utf-8", (err, data) => {
     const text = data;
     calc.code = text;
-    calc.namespace = global;
     console.log();
     console.log("-------------   global namespace   -------------");
     console.log(text);
     console.log(calc.value);
     //console.log("--------Parsed tree---------");
     //ret[0].printtree();
-
     console.log();
     fs.readFile("test.2.code", "utf-8", (err, data) => {
         const text = data;

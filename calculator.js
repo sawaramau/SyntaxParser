@@ -13,7 +13,7 @@ class config {
 
         this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
         this.punctuations = punctuations || [';']; // 文末として解釈される文字群
-        this.hooks = hooks || [];
+        this.hooks = hooks || {};
 
         // *****同一の演算子の場合、項数の少ない演算子ほど優先度を高くすること*****
         // 例えば + 1 と 1 + 1 の場合、単項の方が優先度が高い
@@ -215,8 +215,6 @@ class config {
                     )
                 ),
             ],
-
-
 
             // エラーハンドリング
             [
@@ -1855,9 +1853,9 @@ class myconsole {
             if ((typeof arguments[i]) == "string") {
                 const m = arguments[i].match(reg);
                 if (m) {
-                    array.push('\u001b[33m' + m[1] + '\u001b[0m' + m[2]);
+                    array.push('\u001b[32m' + m[1] + '\u001b[0m' + m[2]);
                 } else {
-                    array.push('\u001b[33m' + arguments[i] + '\u001b[0m');
+                    array.push('\u001b[32m' + arguments[i] + '\u001b[0m');
                 }
             } else {
                 array.push(arguments[i]);

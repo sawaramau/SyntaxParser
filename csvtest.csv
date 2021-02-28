@@ -1,4 +1,2 @@
-﻿test,a'a'a,sam'ple
-"a""a""a""","""bcd"",""","samp""le"""
-test,ababa,"foo,o"
-a,,
+﻿attribute attr, drops src, drop dst
+attribute attribute, drop src, drop dst
