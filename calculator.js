@@ -3071,11 +3071,25 @@ class interpretation {
         return this.meta.name;
     }
 
+    get calculated () {
+        if (this._calclated === undefined) {
+            this._calclated = false;
+        }
+        return this._calclated;
+    }
+    set calculated(val) {
+        this._calclated = val;
+    }
+
     get value() {
-        this.args.map(arg => {
-            arg.parent = this;
-        });
-        return this.define.formula(this.args, this.meta, this);
+        if (!this.calculated) {
+            this.args.map(arg => {
+                arg.parent = this;
+            });
+            this._value = this.define.formula(this.args, this.meta, this);
+            this.calculated = true;
+        }
+        return this._value;
     }
     get index() {
         return this.horizonal - this.offset;
@@ -3145,16 +3159,18 @@ class interpretation {
         }
         if (this._parent) {
             this.parent.invalid = val;
+            delete this._parent;
+            delete this._tmpparent;
         }
         if (val) {
             // release
-            this._left = null;   // left children
-            this._childtrees = null; // 
-            this._right = null;  // right children
-            this._brothers = null;
-            this._leftblank = null;
-            this._rightblank = null;
-            this._childblanktrees = null; // 
+            delete this._left;   // left children
+            delete this._childtrees; // 
+            delete this._right;  // right children
+            delete this._brothers;
+            delete this._leftblank;
+            delete this._rightblank;
+            delete this._childblanktrees; // 
         }
         return this._invalid = val;
     }
@@ -3180,6 +3196,9 @@ class interpretation {
         return this.define.order;
     }
     get left() {
+        if (this.calculated) {
+            return 0;
+        }
         if (this.invalid) {
             return -1;
         }
@@ -3189,6 +3208,9 @@ class interpretation {
         return this.define.left - this._left.length;
     }
     get right() {
+        if (this.calculated) {
+            return 0;
+        }
         if (this.invalid) {
             return -1;
         }
@@ -3542,7 +3564,6 @@ class contexts {
         if (roots.length == 1) {
             return roots;
         }
-
         let prev;
         const trees = roots.reduce((acc, cur) => {
             const root = cur;
@@ -4585,6 +4606,20 @@ class calculator {
             return val.value;
         }
         return new interpretation(this.config.ops.undefined).value;
+    }
+
+    get root() {
+        const result = this.result.dependency();
+        result[0].rootnamespace = this.namespace;
+        if (result.length != 1) {
+            myconsole.implmenterror('Cannot complete parse tree.', result.length);
+            result.map((v, i) => {
+                console.log('----------', i, '----------');
+                v.printtree()
+            });
+        }
+        const val = result[0].value;
+        return val;
     }
 
     return(globalspace) {

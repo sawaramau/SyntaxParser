@@ -6,28 +6,33 @@ class csvconfig {
         this.join = Calc.join.orders;
         this.types = Calc.types;
         this.hooks = {};
-        let col = 0;
-        let row = 0;
         this.hooks.alternative = (argv, meta, self, types) => {
             const first = self.first;
-            if (argv.length > 0) {
-                const val = argv[0].value;
-                if (this.processor && argv[0].type == 'element') {
-                    this.processor(val, col, row);
+            const result = (()=> {
+                if (argv.length == 0) {
+                    return [[]];
+                } else {
+                    const val = argv[0].value;
+                    if (argv[0].type == 'element') {
+                        return [[val]];
+                    } else if (first == this.delimiter) {
+                        return val;
+                    } else {
+                        return val.concat([[]]);
+                    }
                 }
-            }
-            if (first == this.delimiter) {
-                col++;
-            } else {
-                row++;
-                col = 0;
-            }
+            })();
+            const last = result.length - 1;
             if (argv.length == 2) {
                 const val = argv[1].value;
-                if (this.processor && argv[1].type == 'element') {
-                    this.processor(val, col, row);
+                if (argv[1].type == 'element') {
+                    result[last].push(val);
+                } else {
+                    result[last] = result[last].concat(val[0]);
+                    return result.concat(val.slice(1));
                 }
             }
+            return result;
         };
 
         this.opdefs = [
@@ -104,6 +109,7 @@ class csvconfig {
                     },
                     null,
                     (val) => {
+                        console.log(val);
                         return val;
                     },
                     "string", null, 0,
@@ -143,6 +149,24 @@ class csvconfig {
             ],
         ];
         this.config = new Calc.config(this.opdefs, this.punctuations, [], this.hooks, []);
+    }
+
+    set code(val) {
+        this.parser.code = val;
+    }
+
+    get value() {
+        if (this._value === undefined) {
+            this._value = this.parser.root;
+        }
+        if (this.processor) {
+            return this._value.map((v, r) => {
+                return v.map((e, c) => {
+                    return this.processor(e, c, r);
+                });
+            });
+        }
+        return this._value;
     }
 
     isNewline(text, ptr) {
