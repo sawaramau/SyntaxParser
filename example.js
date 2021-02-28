@@ -3,10 +3,7 @@ const text = "return {x:1}?x"; // object
 const text2 = 'return {x:1}?x ? 2 : 3';
 const text3 = 'return {x:1}?y';
 const text4 = 'return ((1) => {return {abc: 123}?abc})(1)';
-const calc = new Calc.calculator(text);
-const calc2 = new Calc.calculator(text2);
-const calc3 = new Calc.calculator(text3);
-const calc4 = new Calc.calculator(text4);
+const calc = new Calc.calculator(undefined);
 
 const strslice = (str, pos, insert, len = 5) => {
     const a = str.slice(0, pos);
@@ -41,18 +38,21 @@ const view = (node, view, results, depth = 0) => {
 }
 
 console.log("");
-const ret = calc.result.dependency();
 console.log("-------------   calc1   -------------");
 console.log(text);
-console.log(calc.return().value);
+calc.code = text;
+console.log(calc.value);
 console.log("-------------   calc2   -------------");
 console.log(text2);
-console.log(calc2.return().value);
+calc.code = text2;
+console.log(calc.value);
 console.log("-------------   calc3   -------------");
 console.log(text3);
-console.log(calc3.return().value);
+calc.code = text3;
+console.log(calc.value);
 console.log("-------------   calc4   -------------");
 console.log(text4);
-console.log(calc4.return().value);
+calc.code = text4;
+console.log(calc.value);
 console.log("");
 return;

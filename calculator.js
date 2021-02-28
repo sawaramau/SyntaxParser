@@ -2949,8 +2949,8 @@ class interpretation {
 
         for (let def of this.context) {
             // def: interpretation
-            const leftgeta = def.order == module.exports.join.orders.left ? 0.5 : 0; // 左結合
-            const rightgeta = def.order == module.exports.join.orders.right ? 0.5 : 0; // 右結合
+            const leftgeta = def.order == module.exports.join.orders.left ? 1 : 0; // 左結合
+            const rightgeta = def.order == module.exports.join.orders.right ? 1 : 0; // 右結合
             const minleft = roots.left.length && (min.left.priority + leftgeta) < def.priority;
             const minright = roots.right.length && (min.right.priority + rightgeta) < def.priority;
             if (!def) {
@@ -3625,8 +3625,8 @@ class contexts {
             const adjacentleft = interpretation.root.lefttree;
             const adjacentright = interpretation.root.righttree;
             const geta = {};
-            geta.left = interpretation.order == this.config.join.order.left ? 0.5 : 0;
-            geta.right = interpretation.order == this.config.join.order.right ? 0.5 : 0;
+            geta.left = interpretation.order == this.config.join.order.left ? 1 : 0;
+            geta.right = interpretation.order == this.config.join.order.right ? 1 : 0;
             // 元々の意味が空白だった場合、自身のツリーを食える
             const prev = interpretation.previnterpretation;
             if (prev) {
@@ -3943,12 +3943,12 @@ class contexts {
 
                 // 優先度の高い順に文脈を並び変える。
                 const neighbors = program[j].slice().reverse();
+                const n = neighbors.find(def => {
+                    return def && !def.invalid;
+                });
+                const g = (n === undefined ? 0 : self.order == ( self.horizonal < n.horizonal ? module.exports.join.orders.right : module.exports.join.orders.left) ? 1 : 0);
                 if (
-                    !neighbors.find(def => {
-                        return def && !def.invalid;
-                    }) || neighbors.find(def => {
-                        return def && !def.invalid;
-                    }).priority < self.priority
+                    !n || (n.priority + g) < self.priority
                 ) {
                     // 隣接要素の最大優先度が自身より低いとき、その要素を超える方法はない。
                     break;
@@ -3959,9 +3959,9 @@ class contexts {
 
                 for (let neighbor of neighbors) {
                     blank = (neighbor.type == itemtype.types().blank);
-
+                    const geta = self.order == (self.horizonal < neighbor.horizonal ? module.exports.join.orders.right : module.exports.join.orders.left) ? 1 : 0;
                     // より優先度の高い子を探す
-                    if (self.priority > neighbor.priority) {
+                    if (self.priority > neighbor.priority + geta) {
                         // 自身の優先度より低い要素は無視。これ以降も総じて優先度が低いのでbreak
                         break;
                     } else if (neighbor.invalid) {
@@ -4011,61 +4011,19 @@ class contexts {
             if (completes[interpretation.horizonal - start]) {
                 continue;
             }
-
-            if (interpretation.order == this.config.join.order.right) {
-                let next = 0;
-                while (interpretation.order == this.config.join.order.right) {
-                    if (i + next >= context.length) {
-                        break;
-                    }
-                    interpretation = context[i + next];
-                    next++;
-                }
-                for (let j = 0; j < next; j++) {
-                    interpretation = context[i + next - j - 1];
-                    // 右結合の要素は最新の要素の左側から検証する
-                    search(interpretation, true);
-                }
-                i += next - 1;
-            } else {
-                // 左結合の要素は古い要素の右側から検証する
-                search(interpretation, false);
-            }
+            search(interpretation, interpretation.order == this.config.join.order.right);
         }
         for (let i = 0; i < context.length; i++) {
             let interpretation = context[i];
             if (completes[interpretation.horizonal - start]) {
                 continue;
             }
-            if (interpretation.order == this.config.join.order.right) {
-                let next = 0;
-                while (interpretation.order == this.config.join.order.right) {
-                    if (i + next >= context.length) {
-                        break;
-                    }
-                    interpretation = context[i + next];
-                    next++;
-                }
-                for (let j = 0; j < next; j++) {
-                    interpretation = context[i + next - j - 1];
-                    if (!completes[interpretation.horizonal - start]) {
-                        search(interpretation, false);
-                        if (interpretation.left || interpretation.right) {
-                            interpretation.invalid = true;
-                        } else {
-                            completes[interpretation.horizonal - start] = true;
-                        }
-                    }
-                }
-                i += next - 1;
-            } else {
-                if (!completes[interpretation.horizonal - start]) {
-                    search(interpretation, true);
-                    if (interpretation.left || interpretation.right) {
-                        interpretation.invalid = true;
-                    } else {
-                        completes[interpretation.horizonal - start] = true;
-                    }
+            if (!completes[interpretation.horizonal - start]) {
+                search(interpretation, interpretation.order != this.config.join.order.right);
+                if (interpretation.left || interpretation.right) {
+                    interpretation.invalid = true;
+                } else {
+                    completes[interpretation.horizonal - start] = true;
                 }
             }
         }
