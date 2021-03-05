@@ -1071,62 +1071,8 @@ class config {
                     )
                 ),
             ],
-            // ドットアクセス
-            [
 
-                this.opdefine(
-                    [1, "?", 1],
-                    this.join.order.left,
-                    (argv, meta, self) => {
-                        const space = argv[0].value;
-                        if (!(space instanceof property)) {
-                            return undefined;
-                        }
-                        argv[1].property = space;
-                        self.property = space;
-                        if (meta.set) {
-                            argv[1].meta.set = meta.set;
-                        }
-                        argv[1].value;
-                        const name = argv[1].name;
-                        meta.ref = space.resolve(name);
-                        if (meta.ref) {
-                            return meta.ref.value;
-                        }
-                        return undefined;
-                    },
-                    "?", null, 0,
-                    this.typeset(
-                        [[this.types.ref, this.types.ref]],
-                        [this.types.ref],
-                        [
-                            [this.types.control],
-                        ]
-                    )
-                ),
-                this.opdefine(
-                    [1, ".", 1],
-                    this.join.order.left,
-                    (argv, meta, self) => {
-                        const property = argv[0].value;
-                        argv[1].property = property;
-                        self.property = property;
-
-                        if (meta.set) {
-                            argv[1].meta.set = meta.set;
-                        }
-                        return argv[1].value;
-                    },
-                    ".", null, 0,
-                    this.typeset(
-                        [[this.types.ref, this.types.ref]],
-                        [this.types.ref],
-                        [
-                            [this.types.control],
-                        ]
-                    )
-                ),
-            ],
+            // アクセサ
             [
                 // operator
                 // brackets
@@ -1195,7 +1141,61 @@ class config {
                         ],
                     )
                 ),
+
+                this.opdefine(
+                    [1, "?", 1],
+                    this.join.order.left,
+                    (argv, meta, self) => {
+                        const space = argv[0].value;
+                        if (!(space instanceof property)) {
+                            return undefined;
+                        }
+                        argv[1].property = space;
+                        self.property = space;
+                        if (meta.set) {
+                            argv[1].meta.set = meta.set;
+                        }
+                        argv[1].value;
+                        const name = argv[1].name;
+                        meta.ref = space.resolve(name);
+                        if (meta.ref) {
+                            return meta.ref.value;
+                        }
+                        return undefined;
+                    },
+                    "?", null, 0,
+                    this.typeset(
+                        [[this.types.ref, this.types.ref]],
+                        [this.types.ref],
+                        [
+                            [this.types.control],
+                        ]
+                    )
+                ),
+                this.opdefine(
+                    [1, ".", 1],
+                    this.join.order.left,
+                    (argv, meta, self) => {
+                        const property = argv[0].value;
+                        argv[1].property = property;
+                        self.property = property;
+
+                        if (meta.set) {
+                            argv[1].meta.set = meta.set;
+                        }
+                        return argv[1].value;
+                    },
+                    ".", null, 0,
+                    this.typeset(
+                        [[this.types.ref, this.types.ref]],
+                        [this.types.ref],
+                        [
+                            [this.types.control],
+                        ]
+                    )
+                ),
             ],
+
             // 宣言
             [
                 // values

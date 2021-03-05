@@ -1,3 +1,4 @@
+var te = [1]
 var test = ("1\"1");
 
 var ui = {};
@@ -9,4 +10,4 @@ var common = {
 };
 ui.common = common;
 
-return ui.common.pt.test;
+return ui.common.pt.monsters[1].attr;
