@@ -2,6 +2,7 @@ const Calc = require("./calculator.js");
 
 class csvconfig {
     constructor(delimiter = ',') {
+        this.typeword = 'csv-element';
         this.delimiter = delimiter;
         this.join = Calc.join.orders;
         this.types = Calc.types;
@@ -10,27 +11,40 @@ class csvconfig {
             const first = self.first;
             const result = (()=> {
                 if (argv.length == 0) {
-                    return [[]];
+                    return [['']];
                 } else {
                     const val = argv[0].value;
-                    if (argv[0].type == 'element') {
-                        return [[val]];
+                    if (argv[0].type == this.typeword) {
+                        if (first == this.delimiter) {
+                            return [[val]];
+                        } else {
+                            return [[val], []];
+                        }
                     } else if (first == this.delimiter) {
+                        if (argv[0].priority == 1 || argv[0].priority == 2) {
+                            // 手前の要素は右手がない = 空白要素である
+                            val[val.length - 1].push('');
+                        }
                         return val;
-                    } else {
-                        return val.concat([[]]);
+                    } else { // 改行
+                        console.log(1);
+                        val.push([]);
+                        return val;
                     }
                 }
             })();
             const last = result.length - 1;
             if (argv.length == 2) {
                 const val = argv[1].value;
-                if (argv[1].type == 'element') {
+                if (argv[1].type == this.typeword) {
                     result[last].push(val);
+                //} else if (val == this.delimiter) {
                 } else {
                     result[last] = result[last].concat(val[0]);
                     return result.concat(val.slice(1));
                 }
+            } else if (argv.length == 1 && first == this.delimiter) {
+                result[last].push('');
             }
             return result;
         };
@@ -79,14 +93,16 @@ class csvconfig {
                     },
                     null,
                     (val) => {
-                        return val.slice(1, -1).replace(new RegExp(this.esc + this.close, 'g'), this.close);
+                        const str = val.slice(1, -1).replace(new RegExp(this.esc + this.close, 'g'), this.close);
+                        console.log(str);
+                        return str;
                     },
                     "string", null, 0,
                     new Calc.typeset(
                         [
                         ],
                         [
-                            'element'
+                            this.typeword
                         ],
                         [
                         ],
@@ -117,7 +133,7 @@ class csvconfig {
                         [
                         ],
                         [
-                            'element'
+                            this.typeword
                         ],
                         [
                         ],
@@ -186,10 +202,12 @@ class csvconfig {
         }).length > 0;
     }
     get punctuations() {
-        return [(word, ptr) => {
-            const key = this.delimiter.slice(0, word.length);
-            return (word == key);
-        }].concat(this.newlines);
+        return [
+            (word, ptr) => {
+                const key = this.delimiter.slice(0, word.length);
+                return (word == key);
+            }
+        ].concat(this.newlines);
     }
     get delimiter() {
         return this._delimiter;
@@ -200,7 +218,7 @@ class csvconfig {
 
     get newlines() {
         if (this._newlines === undefined) {
-            this.newlines = ['\n', '\r\n'];
+            this.newlines = ['\n', '\r\n', '\r'];
         }
         return this._newlines;
     }

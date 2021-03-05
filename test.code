@@ -3,9 +3,10 @@ var test = ("1\"1");
 var ui = {};
 var common = {
   pt:{
+    test:1,
     monsters:[{attr: 1}, {attr: 2}, {attr: 3}, {attr: 4}, {attr: 5}, {attr: 6}],
   },
 };
 ui.common = common;
 
-return test;
+return ui.common.pt.test;

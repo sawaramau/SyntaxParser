@@ -3081,6 +3081,22 @@ class interpretation {
         this._calclated = val;
     }
 
+    get confirm () {
+        if (this._confirm === undefined) {
+            this._confirm = false;
+        }
+        return this._confirm;
+    }
+    set confirm (val) {
+        if (val == !this._confirm) {
+            this.args.map(v => v.confirm = val);
+        }
+        if (this.confirm == false && val == true) {
+            //this.value;
+        }
+        this._confirm = val;
+    }
+
     get value() {
         if (!this.calculated) {
             this.args.map(arg => {
@@ -3400,14 +3416,16 @@ class context {
 
     get contexts() {
         const contexts = {};
+        contexts.nexters = {};
         for (let def of this.context) {
             const nexter = def.nexter;
             if (!nexter || def.invalid || nexter.invalid) {
+                // なにもしない
                 continue;
-            } else if (!(nexter.first in contexts)) {
-                contexts[nexter.first] = new context(nexter.first);
+            } else if (!(nexter.first in contexts.nexters)) {
+                contexts.nexters[nexter.first] = new context(nexter.first);
             }
-            contexts[nexter.first].push(nexter);
+            contexts.nexters[nexter.first].push(nexter);
         }
         return contexts;
     }
@@ -3438,17 +3456,65 @@ class contexts {
         this._ptr = val;
     }
     // 
+
+    get prevpunc() {
+        if (this._prevpunc === undefined) {
+            this.prevpunc = 0;
+        }
+        const index = this._prevpunc.length - 1;
+        if (index < 0) {
+            return -1;
+        }
+        return this._prevpunc[index];
+    }
+    get prevend() {
+        return this._prevpunc[this._prevpunc.length - 1];
+    }
+    set prevpunc(val) {
+        if (this._prevpunc === undefined) {
+            this._prevpunc = [];
+        }
+        this._prevpunc.push(val);
+    }
+    get confirmed() {
+        if (this._confirmed === undefined) {
+            this._confirmed = [];
+        }
+        return this._confirmed;
+    }
     push(keyword) {
         const context = this.context(keyword).sort((l, r) => {
             return l.priority - r.priority;
         });
 
         let i = 0;
+        let maxpriority = 0;
         for (let interpretation of context) {
             interpretation.horizonal = this.program.length;
             interpretation.vertical = i;
             interpretation.context = context;
             i++;
+            if (interpretation.priority > maxpriority) {
+                maxpriority = interpretation.priority;
+            }
+        }
+        if (maxpriority < 3) {
+            if (1) {
+                const dep = this.dependency(this.prevpunc + 1);
+                const confirmed = (node) => {
+                    if (!this.config.ops.maybepunctuation(node.first)) {
+                        //node.confirm = true;
+                        this.confirmed[node.horizonal] = node;
+                    }
+                    node.allchildren.map(v => confirmed(v));
+                    node.allchildtrees.map(v => confirmed(v));
+                }
+                dep.map(root => {
+                    this.confirmed[root.horizonal] = root;
+                    confirmed(root);
+                });
+            }
+            this.prevpunc = this.program.length;
         }
 
         if (context.length) {
@@ -3463,7 +3529,8 @@ class contexts {
         const program = [];
         for (let context of src.slice(start, end)) {
             const array = [];
-
+            const horizonal = context[0].horizonal;
+            const confirmed = this.confirmed[horizonal];
             for (let def of context) {
                 if (!def) {
                     array.push(undefined);
@@ -3479,7 +3546,16 @@ class contexts {
                     return clone;
                 })()
                 clone.offset = start;
-                array.push(clone);
+                if (confirmed) {
+                    if (confirmed.vertical != clone.vertical) {
+                        clone.invalid = true;
+                    } else {
+                        array.push(clone);
+                    }
+                } else {
+                    array.push(clone);
+                }
+            
             }
             program.push(array);
         }
@@ -3514,7 +3590,6 @@ class contexts {
     }
 
     retree(program) {
-        
         let nexter;
         // roots: 解析木の根の集合（現状の1解釈分のみ）
         // [interpretation, interpretation, ...] <- only tree root
@@ -3736,7 +3811,7 @@ class contexts {
         for (let i = 0; i < program.length; i++) {
             const horizonal = start + i;
             for (let j = 0; j < program[i].length; j++) {
-                const vertical = program[i].length - 1 - j;
+                const vertical = program[i].length - 1 - j; // このverticalは実装次第ではop.verticalと一致しないので注意
                 const op = program[i][vertical];
                 if (!op) {
                     myconsole.implmenterror("undefined code!!");
@@ -3751,7 +3826,7 @@ class contexts {
                     myconsole.implmenterror("Error!!", op.fullgrammer, op.define.first, op.horizonal, itemtype.string(op.type));
                     myconsole.implmenterror(interpretations.map(v => v.horizonal));
                 }
-
+                
                 if (interpretation && interpretation.vertical < op.vertical) {
                     op.invalid = true;
                 } else if (nexter && (horizonal < nexter.horizonal)) {
@@ -3831,7 +3906,6 @@ class contexts {
         const program = this.extraction(this.program, start, end);
 
         this.squash(program, start, interpretations);
-
         const contexts = this.reorder(program);
         const completes = Array(program.length);
         completes.fill(false);
@@ -4051,9 +4125,10 @@ class contexts {
     }
 
     context(keyword) {
-        const current = this.current(keyword);
+        const current = this.current(keyword); // 囲み文字としての現在可能な解釈
 
         if (current.length) {
+            // 囲み文字としての解釈があればそれが優先される
             return current;
         }
         let open = false;
@@ -4071,7 +4146,7 @@ class contexts {
             }
         }
         const recurrent = reserved.length ? reserved : current;
-        if (open) {
+        if (open) { // 
             const con = new context(keyword);
             con.context = recurrent;
             this._temporary.unshift(con);
@@ -4087,9 +4162,8 @@ class contexts {
         for (let index = 0; index < this._temporary.length; index++) {
             const contexts = this._temporary[index].contexts;
             const closed = this._temporary[index].closed;
-            if (keyword in contexts) {
-
-                const nexters = contexts[keyword].context.sort((l, r) => {
+            if (keyword in contexts.nexters) {
+                const nexters = contexts.nexters[keyword].context.sort((l, r) => {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
                 this._temporary[index] = new context(keyword);
@@ -4291,6 +4365,19 @@ class ops {
         return this._undefined;
     }
 
+    maybepunctuation(word) {
+        const result = this._puncs.find(v => {
+            const t = typeof v
+            if (t == 'string') {
+                return v == word;
+            } else if (t == 'function') {
+                return v(word);
+            }
+            return false;
+        });
+        return result !== undefined;
+    }
+
     constructor(opdefines, punctuations, puncblanks, hooks, reserved) {
         // opdefines: [               priority
         //    [opdefine, opdefine],     low
@@ -4302,10 +4389,11 @@ class ops {
         this.opdefines = opdefines;
         this.puncblanks = puncblanks || [];
         this.punctuations = punctuations || [];
+        this._puncs = this.punctuations.concat(this.puncblanks);
         this.reserved = reserved || []; // [string, sitring, ...]
         this.opdefines.unshift(this.punctuations.map(v => this.makepunctuations(0, v)));
-        this.opdefines.unshift(this.punctuations.concat(this.puncblanks).map(v => this.makepunctuations(1, v)));
-        this.opdefines.unshift(this.punctuations.concat(this.puncblanks).map(v => this.makepunctuations(1, v, 1)));
+        this.opdefines.unshift(this._puncs.map(v => this.makepunctuations(1, v)));
+        this.opdefines.unshift(this._puncs.map(v => this.makepunctuations(1, v, 1)));
         this.opdefines.push(this.puncblanks.map(v => this.makeblank(v)));
         
         let priority = 0;
@@ -4634,10 +4722,12 @@ class calculator {
     parse() {
         this.result = new contexts(this.config);
         this.result.ptr = this.code;
+        const words = [];
         while (this.code.length > 0) {
             const read = this.config.getword(this.code);
-            this.result.push(read.keyword);
+            words.push(read.keyword);
         }
+        words.map(word => this.result.push(word));
         return this.result;
     }
 }

@@ -1,2 +1,3 @@
-﻿attribute attr1, drops src1, drop dst1
-attribute attribute2, drop src2,
+﻿,,1,1
+,2,2,,2,22,2,2,,,2,
+3,3,3,,,,

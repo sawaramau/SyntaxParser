@@ -16,8 +16,11 @@ csv.processor = (val, col, row) => {
 fs.readFile("csvtest.csv", "utf-8", (err, data) => {
     const text = data.replace(/^\uFEFF/, ''); // bom remove
     csv.code = text;
+    //console.log(text);
     console.log("-------------   parsed   -------------");
+    const r = csv.parser.result.dependency();
     console.log(csv.value);
+    r[0].printtree();
     console.log();
     console.log("-------------   csv   -------------");
     //console.log(text);
