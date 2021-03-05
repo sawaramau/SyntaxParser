@@ -1070,10 +1070,6 @@ class config {
                         ],
                     )
                 ),
-            ],
-
-            // アクセサ
-            [
                 // operator
                 // brackets
                 this.opdefine(
