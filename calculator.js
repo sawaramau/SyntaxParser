@@ -3495,21 +3495,24 @@ class contexts {
             }
         }
         if (maxpriority < 3) {
-            if (1) {
-                const dep = this.dependency(this.prevpunc + 1);
-                const confirmed = (node) => {
-                    if (!this.config.ops.maybepunctuation(node.first)) {
-                        //node.confirm = true;
-                        this.confirmed[node.horizonal] = node;
-                    }
-                    node.allchildren.map(v => confirmed(v));
-                    node.allchildtrees.map(v => confirmed(v));
+            const dep = this.dependency(this.prevpunc + 1);
+            const confirmed = (node) => {
+                // 左要素のみの文末表現 priority == 1 は、最新の文末表現との結合の仕方を確定できない。
+                // *補足1 文末表現 priority == 2 は文末表現が左結合なことから左要素を持たない事を確定できる
+                // *補足2 文末表現 priority == 0 はこれ以上考慮すべき解釈がないため確定できる
+                // *補足3 文末表現になれなかった空白文字は文末表現の挟み込みを超えて文末表現になることはないので確定できる
+                if (node.priority == 1) {
+                    //node.confirm = true;
+                    this.confirmed[node.horizonal] = node;
                 }
-                dep.map(root => {
-                    this.confirmed[root.horizonal] = root;
-                    confirmed(root);
-                });
+                // 文末表現のその他の子要素は文末表現を超えられる解釈を持たないので、子要素については総じて確定と考える
+                node.allchildren.map(v => confirmed(v));
+                node.allchildtrees.map(v => confirmed(v));
             }
+            dep.map(root => {
+                this.confirmed[root.horizonal] = root;
+                confirmed(root);
+            });
             this.prevpunc = this.program.length;
         }
 
