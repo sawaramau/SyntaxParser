@@ -110,8 +110,6 @@ class csvconfig {
                         ],
                     )
                 ),
-            ],
-            [
                 new Calc.opdefine(
                     (val, ptr) => {
                         // 文字列

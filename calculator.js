@@ -3455,20 +3455,27 @@ class contexts {
 
     get prevpunc() {
         if (this._prevpunc === undefined) {
-            this.prevpunc = 0;
+            this._prevpunc = [0];
         }
-        const index = this._prevpunc.length - 1;
+        const index = this._prevpunc.length - (this.distance + this.width + 1);
         if (index < 0) {
             return -1;
         }
         return this._prevpunc[index];
     }
     get prevend() {
-        return this._prevpunc[this._prevpunc.length - 1];
+        if (this._prevpunc === undefined) {
+            this._prevpunc = [0];
+        }
+        const index = this._prevpunc.length - (this.distance + 1);
+        if (index < this.width) {
+            return -1;
+        }
+        return this._prevpunc[index];
     }
     set prevpunc(val) {
         if (this._prevpunc === undefined) {
-            this._prevpunc = [];
+            this._prevpunc = [0];
         }
         this._prevpunc.push(val);
     }
@@ -3494,31 +3501,52 @@ class contexts {
                 maxpriority = interpretation.priority;
             }
         }
+
+        if (context.length == 0) {
+            return;
+        }
+        this.program.push(context);
         if (maxpriority < 3) {
-            const dep = this.dependency(this.prevpunc + 1);
-            const confirmed = (node) => {
-                // 左要素のみの文末表現 priority == 1 は、最新の文末表現との結合の仕方を確定できない。
-                // *補足1 文末表現 priority == 2 は文末表現が左結合なことから左要素を持たない事を確定できる
-                // *補足2 文末表現 priority == 0 はこれ以上考慮すべき解釈がないため確定できる
-                // *補足3 文末表現になれなかった空白文字は文末表現の挟み込みを超えて文末表現になることはないので確定できる
-                if (node.priority == 1) {
-                    //node.confirm = true;
-                    this.confirmed[node.horizonal] = node;
-                }
-                // 文末表現のその他の子要素は文末表現を超えられる解釈を持たないので、子要素については総じて確定と考える
-                node.allchildren.map(v => confirmed(v));
-                node.allchildtrees.map(v => confirmed(v));
-            }
-            dep.map(root => {
-                this.confirmed[root.horizonal] = root;
-                confirmed(root);
-            });
             this.prevpunc = this.program.length;
+            if (this.prevend > 0) {
+                const dep = this.dependency(this.prevpunc, this.prevend);
+                const confirmed = (node) => {
+                    // 直近の文末表現は右手側の可能性があるため確定できない
+                    if (node.horizonal != this.prevend - 1) {
+                        //node.confirm = true;
+                        this.confirmed[node.horizonal] = node;
+                        //node.value;
+                    }
+                    // 文末表現のその他の子要素は文末表現を超えられる解釈を持たないので、子要素については総じて確定と考える
+                    node.allchildren.map(v => confirmed(v));
+                    node.allchildtrees.map(v => confirmed(v));
+                }
+                dep.map(root => {
+                    //this.confirmed[root.horizonal] = root;
+                    confirmed(root);
+                });
+            }
         }
 
-        if (context.length) {
-            this.program.push(context);
+    }
+
+    get width() {
+        if (this._width === undefined) {
+            this.width = 2;
         }
+        return this._width;
+    }
+    get distance() {
+        if (this._distance === undefined) {
+            this.distance = 0;
+        }
+        return this._distance;
+    }
+    set width(val) {
+        this._width = val;
+    }
+    set distance(val) {
+        this._distance = val;
     }
 
     // program形式で保存されたinterpretationをクローンしながらコピー。
@@ -3546,8 +3574,9 @@ class contexts {
                 })()
                 clone.offset = start;
                 if (confirmed) {
-                    if (confirmed.vertical != clone.vertical) {
+                    if (confirmed.vertical < clone.vertical) {
                         clone.invalid = true;
+                        //array.push(clone);
                     } else {
                         array.push(clone);
                     }
