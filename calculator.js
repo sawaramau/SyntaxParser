@@ -3477,7 +3477,19 @@ class contexts {
         if (this._prevpunc === undefined) {
             this._prevpunc = [0];
         }
-        this._prevpunc.push(val);
+        let index = 0;
+        for (index = 0; index < this._prevpunc.length; index++) {
+            if (this._prevpunc[index] == val) {
+                index = -1;
+                break;
+            } else if (this._prevpunc[index] > val) {
+                break;
+            }
+        }
+        if (index < 0) {
+            return;
+        }
+        this._prevpunc.splice(index, 0, val);
     }
     get confirmed() {
         if (this._confirmed === undefined) {
@@ -3512,8 +3524,14 @@ class contexts {
                 const dep = this.dependency(this.prevpunc, this.prevend);
                 const confirmed = (node) => {
                     // 直近の文末表現は右手側の可能性があるため確定できない
+                    // * 右手側にpunkblankが文末表現として解釈されたものがある場合、確定できる（未実装）
                     if (node.horizonal != this.prevend - 1) {
-                        //node.confirm = true;
+                        // node.confirm = true;
+                        // punkblankが確定的に文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
+                        // * 再検討されると、自身の左手側が存在しないパターンが発生する
+                        if (node.priority < 2 && this.config.ops.ispuncblank(node.first)) {
+                            this.prevpunc = node.horizonal + 1;
+                        }
                         this.confirmed[node.horizonal] = node;
                         //node.value;
                     }
@@ -3986,11 +4004,8 @@ class contexts {
                 return acc;
             }, []);
             myconsole.implmenterror("Incomprehensible operators exist", fails);
-            const ops = fails.map(v => this.program[v][0]);
-            myconsole.implmenterror("Operator", ops.map(v => [v.first, v.left, v.right, v.finished]));
-            myconsole.implmenterror("Range:", start, "-", end - 1);
-            const f = this.program[start].find(v => !v.invalid);
-            myconsole.implmenterror("Start", f.fullgrammer, "End", this.program[end - 1][0].first);
+            const ops = fails.map(v => program[v - start]);
+            myconsole.implmenterror("Operator", ops.map(vs => [vs[0].horizonal].concat(vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid]))));
         }
 
         return program;
@@ -4393,8 +4408,8 @@ class ops {
         return this._undefined;
     }
 
-    maybepunctuation(word) {
-        const result = this._puncs.find(v => {
+    ispuncblank(word) {
+        const result = this.puncblanks.find(v => {
             const t = typeof v
             if (t == 'string') {
                 return v == word;
