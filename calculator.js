@@ -3521,17 +3521,18 @@ class contexts {
         if (maxpriority < 3) {
             this.prevpunc = this.program.length;
             if (this.prevend > 0) {
-                const dep = this.dependency(this.prevpunc, this.prevend);
+                const start = this.prevpunc;
+                const end = this.prevend;
+                const dep = this.dependency(start, end);
                 const confirmed = (node) => {
-                    // 直近の文末表現は右手側の可能性があるため確定できない
-                    // * 右手側にpunkblankが文末表現として解釈されたものがある場合、確定できる（未実装）
-                    if (node.horizonal != this.prevend - 1) {
-                        // node.confirm = true;
+                    // horizonal == end - 1 は現状の末尾であるが、後続によって解釈が変わるので必ず確定できない。
+                    if (!(node.horizonal == end - 1)) {
                         // punkblankが確定的に文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
                         // * 再検討されると、自身の左手側が存在しないパターンが発生する
                         if (node.priority < 2 && this.config.ops.ispuncblank(node.first)) {
                             this.prevpunc = node.horizonal + 1;
-                        }
+                        } 
+                        // node.confirm = true;
                         this.confirmed[node.horizonal] = node;
                         //node.value;
                     }
@@ -3592,7 +3593,7 @@ class contexts {
                 })()
                 clone.offset = start;
                 if (confirmed) {
-                    if (confirmed.vertical < clone.vertical) {
+                    if (confirmed.vertical != clone.vertical) {
                         clone.invalid = true;
                         //array.push(clone);
                     } else {
