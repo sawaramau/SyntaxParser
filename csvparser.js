@@ -8,44 +8,32 @@ class csvconfig {
         this.types = Calc.types;
         this.hooks = {};
         this.hooks.alternative = (argv, meta, self, types) => {
-            const first = self.first;
-            const result = (()=> {
-                if (argv.length == 0) {
+            const value = (argc, arg) => {
+                if (argc == 0) {
                     return [['']];
-                } else {
-                    const val = argv[0].value;
-                    if (argv[0].type == this.typeword) {
-                        if (first == this.delimiter) {
-                            return [[val]];
-                        } else {
-                            return [[val], []];
-                        }
-                    } else if (first == this.delimiter) {
-                        if (argv[0].priority == 1 || argv[0].priority == 2) {
-                            // 手前の要素は右手がない = 空白要素である
-                            val[val.length - 1].push('');
-                        }
-                        return val;
-                    } else { // 改行
-                        console.log(1);
-                        val.push([]);
-                        return val;
-                    }
                 }
-            })();
-            const last = result.length - 1;
-            if (argv.length == 2) {
-                const val = argv[1].value;
-                if (argv[1].type == this.typeword) {
-                    result[last].push(val);
-                //} else if (val == this.delimiter) {
-                } else {
-                    result[last] = result[last].concat(val[0]);
-                    return result.concat(val.slice(1));
+                const value = arg.value;
+                const typename = arg.type;
+                if (typename == this.typeword) {
+                    return [[value]];
                 }
-            } else if (argv.length == 1 && first == this.delimiter) {
-                result[last].push('');
+                return value;
             }
+            const leftvalue = value(self.define.left, argv[0]);
+            const rightvalue = value(self.define.right, self.define.left == 1 ? argv[1] : argv[0]);
+
+            const first = self.first;
+            const result = (() => {
+                const array = leftvalue;
+                const leftlast = leftvalue.length - 1;
+                if (first == this.delimiter) {
+                    array[leftlast] = array[leftlast].concat(rightvalue[0]);
+                    rightvalue.slice(1).map(v => array.push(v));
+                } else {
+                    rightvalue.map(v => array.push(v));
+                }
+                return array;
+            })();
             return result;
         };
 
