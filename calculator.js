@@ -2835,21 +2835,17 @@ class interpretation {
     }
 
     get allnodes() {
-        const nodes = []
-        let rec = (node, rec) => {
-            nodes.push(node);
-            for (let child of node.allchildren) {
-                rec(child, rec);
+        const nodes = [];
+        const stack = [this];
+        while (stack.length) {
+            const pop = stack.pop();
+            nodes.push(pop);
+            pop.allchildren.map(v => stack.push(v));
+            pop.allchildtrees.map(v => stack.push(v));
+            if (pop.nexter) {
+                stack.push(pop.nexter)
             }
-            for (let child of node.allchildtrees) {
-                rec(child, rec);
-            }
-            if (!node.nexter) {
-                return;
-            }
-            rec(node.nexter, rec);
-        };
-        rec(this, rec);
+        }
         nodes.sort((l, r) => l.horizonal - r.horizonal);
         return nodes;
     }
