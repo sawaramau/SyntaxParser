@@ -2941,8 +2941,8 @@ class interpretation {
 
         for (let def of this.context) {
             // def: interpretation
-            const leftgeta = def.order == module.exports.join.orders.left ? 1 : 0; // 左結合
-            const rightgeta = def.order == module.exports.join.orders.right ? 1 : 0; // 右結合
+            const leftgeta = def.order == module.exports.join.orders.order.left ? 1 : 0; // 左結合
+            const rightgeta = def.order == module.exports.join.orders.order.right ? 1 : 0; // 右結合
             const minleft = roots.left.length && (min.left.priority + leftgeta) < def.priority;
             const minright = roots.right.length && (min.right.priority + rightgeta) < def.priority;
             if (!def) {
@@ -3976,7 +3976,7 @@ class contexts {
             //myconsole.implmenterror("Start", f.fullgrammer, "End", this.program[end - 1][0].first);
             const ops = fails.map(v => program[v - start]);
             myconsole.implmenterror("Operator");
-            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid])));
+            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid, v.define.grammer])));
         }
 
         return program;
@@ -3992,7 +3992,6 @@ class contexts {
         }
         // フラットな状態の式をコピー
         const program = this.extraction(this.program, start, end);
-
         // 既に無効な解釈の削除と囲み系の事前計算済み解釈の注入
         this.squash(program, start);
 
@@ -4055,7 +4054,6 @@ class contexts {
             if (completes[self.horizonal - start]) {
                 return;
             }
-
             // 自身が無効な命令ならばなにもしない。
             if (self.invalid) {
                 return;
@@ -4093,9 +4091,9 @@ class contexts {
                 const n = neighbors.find(def => {
                     return def && !def.invalid;
                 });
-                const g = (n === undefined ? 0 : self.order == ( self.horizonal < n.horizonal ? module.exports.join.orders.right : module.exports.join.orders.left) ? 1 : 0);
+                const g = (self.order == (order ? module.exports.join.orders.order.left : module.exports.join.orders.order.right) ? 1 : 0);
                 if (
-                    !n || (n.priority + g) < self.priority
+                    !n || ((n.priority + g) < self.priority)
                 ) {
                     // 隣接要素の最大優先度が自身より低いとき、その要素を超える方法はない。
                     break;
@@ -4106,7 +4104,7 @@ class contexts {
 
                 for (let neighbor of neighbors) {
                     blank = (neighbor.type == itemtype.types().blank);
-                    const geta = self.order == (self.horizonal < neighbor.horizonal ? module.exports.join.orders.right : module.exports.join.orders.left) ? 1 : 0;
+                    const geta = self.order == (order ? module.exports.join.orders.order.left : module.exports.join.orders.order.right) ? 1 : 0;
                     // より優先度の高い子を探す
                     if (self.priority > neighbor.priority + geta) {
                         // 自身の優先度より低い要素は無視。これ以降も総じて優先度が低いのでbreak
@@ -4129,7 +4127,7 @@ class contexts {
                         break;
                     } else {
                         // 要素をセット（多分できると思っているけれど、出来なかったら関数がはじく予定）
-                        if (step == -1) {
+                        if (order) {
                             const result = self.setleft(neighbor);
                         } else {
                             const result = self.setright(neighbor);
@@ -4158,19 +4156,61 @@ class contexts {
             if (completes[interpretation.horizonal - start]) {
                 continue;
             }
-            search(interpretation, interpretation.order == this.config.join.order.right);
+
+            if (interpretation.order == module.exports.join.orders.order.right) {
+                let next = 0;
+                while (interpretation.order == module.exports.join.orders.order.right) {
+                    if (i + next >= context.length) {
+                        break;
+                    }
+                    interpretation = context[i + next];
+                    next++;
+                }
+                for (let j = 0; j < next; j++) {
+                    interpretation = context[i + next - j - 1];
+                    // 右結合の要素は最新の要素の左側から検証する
+                    search(interpretation, true);
+                }
+                i += next - 1;
+            } else {
+                // 左結合の要素は古い要素の右側から検証する
+                search(interpretation, false);
+            }
         }
         for (let i = 0; i < context.length; i++) {
             let interpretation = context[i];
             if (completes[interpretation.horizonal - start]) {
                 continue;
             }
-            if (!completes[interpretation.horizonal - start]) {
-                search(interpretation, interpretation.order != this.config.join.order.right);
-                if (interpretation.left || interpretation.right) {
-                    interpretation.invalid = true;
-                } else {
-                    completes[interpretation.horizonal - start] = true;
+            if (interpretation.order == module.exports.join.orders.order.right) {
+                let next = 0;
+                while (interpretation.order == module.exports.join.orders.order.right) {
+                    if (i + next >= context.length) {
+                        break;
+                    }
+                    interpretation = context[i + next];
+                    next++;
+                }
+                for (let j = 0; j < next; j++) {
+                    interpretation = context[i + next - j - 1];
+                    if (!completes[interpretation.horizonal - start]) {
+                        search(interpretation, false);
+                        if (interpretation.left || interpretation.right) {
+                            interpretation.invalid = true;
+                        } else {
+                            completes[interpretation.horizonal - start] = true;
+                        }
+                    }
+                }
+                i += next - 1;
+            } else {
+                if (!completes[interpretation.horizonal - start]) {
+                    search(interpretation, true);
+                    if (interpretation.left || interpretation.right) {
+                        interpretation.invalid = true;
+                    } else {
+                        completes[interpretation.horizonal - start] = true;
+                    }
                 }
             }
         }
