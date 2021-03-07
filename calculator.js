@@ -3457,11 +3457,19 @@ class contexts {
         if (this._prevpunc === undefined) {
             this._prevpunc = [0];
         }
-        const index = this._prevpunc.length - (this.distance + this.width + 1);
-        if (index < 0) {
-            return -1;
+        let index = this._prevpunc.length - (this.distance + this.width + 1);
+        let next = this._prevpunc[index + 1];
+        let value = this._prevpunc[index];
+        while (index > 0) {
+            if (next - value > 1) {
+                // 文末表現が右に隣接しているとき左の要素も必要
+                break;
+            }
+            index--;
+            value = this._prevpunc[index];
+            next = this._prevpunc[index + 1];
         }
-        return this._prevpunc[index];
+        return value;
     }
     get prevend() {
         if (this._prevpunc === undefined) {
@@ -3518,11 +3526,11 @@ class contexts {
             return;
         }
         this.program.push(context);
-        if (maxpriority < 3) {
+        if (maxpriority <= this.config.ops.puncpriority) {
             this.prevpunc = this.program.length;
             if (this.prevend > 0) {
-                const start = this.prevpunc;
                 const end = this.prevend;
+                const start = this.prevpunc;
                 const dep = this.dependency(start, end);
                 const confirmed = (node) => {
                     // horizonal == end - 1 は現状の末尾であるが、後続によって解釈が変わるので必ず確定できない。
@@ -3966,10 +3974,13 @@ class contexts {
                 }
                 return acc;
             }, []);
-            myconsole.implmenterror("Incomprehensible operators exist", fails);
-            myconsole.implmenterror("Range:", start, "-", end - 1);
-            const f = this.program[start].find(v => !v.invalid);
-            myconsole.implmenterror("Start", f.fullgrammer, "End", this.program[end - 1][0].first);
+            myconsole.implmenterror("(reprogram)Incomprehensible operators exist", fails);
+            //myconsole.implmenterror("Range:", start, "-", end - 1);
+            //const f = this.program[start].find(v => !v.invalid);
+            //myconsole.implmenterror("Start", f.fullgrammer, "End", this.program[end - 1][0].first);
+            const ops = fails.map(v => program[v - start]);
+            myconsole.implmenterror("Operator");
+            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid])));
         }
 
         return program;
@@ -4004,9 +4015,10 @@ class contexts {
                 }
                 return acc;
             }, []);
-            myconsole.implmenterror("Incomprehensible operators exist", fails);
+            myconsole.implmenterror("(mintrees)Incomprehensible operators exist", fails);
             const ops = fails.map(v => program[v - start]);
-            myconsole.implmenterror("Operator", ops.map(vs => [vs[0].horizonal].concat(vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid]))));
+            myconsole.implmenterror("Operator");
+            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid])));
         }
 
         return program;
@@ -4422,6 +4434,10 @@ class ops {
         return result !== undefined;
     }
 
+    get puncpriority() {
+        return 1; // 0, 1
+    }
+
     constructor(opdefines, punctuations, puncblanks, hooks, reserved) {
         // opdefines: [               priority
         //    [opdefine, opdefine],     low
@@ -4435,9 +4451,9 @@ class ops {
         this.punctuations = punctuations || [];
         this._puncs = this.punctuations.concat(this.puncblanks);
         this.reserved = reserved || []; // [string, sitring, ...]
-        this.opdefines.unshift(this.punctuations.map(v => this.makepunctuations(0, v)));
-        this.opdefines.unshift(this._puncs.map(v => this.makepunctuations(1, v)));
-        this.opdefines.unshift(this._puncs.map(v => this.makepunctuations(1, v, 1)));
+        //this.opdefines.unshift(); // priority 2
+        this.opdefines.unshift(this.punctuations.map(v => this.makepunctuations(0, v, 1)).concat(this._puncs.map(v => this.makepunctuations(1, v)))); // priority 1
+        this.opdefines.unshift(this._puncs.map(v => this.makepunctuations(1, v, 1))); // priority 0
         this.opdefines.push(this.puncblanks.map(v => this.makeblank(v)));
         
         let priority = 0;
