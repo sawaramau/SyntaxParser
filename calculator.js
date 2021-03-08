@@ -2522,7 +2522,12 @@ class interpretation {
     }
 
     get rootnamespace() {
-        return this.meta.rootnamespace || this.parent.childnamespace;
+        if (this.meta.rootnamespace) {
+            return this.meta.rootnamespace;
+        } else if (this.parent) {
+            return this.parent.childnamespace;
+        }
+        return undefined;
     }
 
     set rootnamespace(val) {
@@ -3090,15 +3095,16 @@ class interpretation {
     }
 
     get value() {
-        if (!this.calculated) {
+        //if (!this.calculated) {
             this.args.map(arg => {
                 arg.parent = this;
             });
             this._value = this.define.formula(this.args, this.meta, this);
-            this.calculated = true;
-        }
+            //this.calculated = true;
+        //}
         return this._value;
     }
+
     get index() {
         return this.horizonal - this.offset;
     }
@@ -3448,6 +3454,10 @@ class contexts {
         this._ptr = val;
     }
     // 
+
+    get punctuations() {
+        return this._prevpunc;
+    }
 
     get prevpunc() {
         if (this._prevpunc === undefined) {
@@ -4156,7 +4166,7 @@ class contexts {
             if (completes[interpretation.horizonal - start]) {
                 continue;
             }
-
+            
             if (interpretation.order == module.exports.join.orders.order.right) {
                 let next = 0;
                 while (interpretation.order == module.exports.join.orders.order.right) {
@@ -4493,54 +4503,78 @@ class ops {
         this.opdefines.push(this.puncblanks.map(v => this.makeblank(v)));
         
         let priority = 0;
-        this.punctuation = (argv, meta, self) => {
-            if (hooks && hooks.alternative) {
-                return hooks.alternative(argv, meta, self, this.types);
-            } else {
-                let retValue = undefined;
-                let ret = false;
-                for (let arg of argv) {
-                    const val = arg.value;
-                    if (hooks && hooks.values) {
-                        hooks.values(val, arg.type, self, arg);
-                    }
-                    if (
-                        arg.type == this.types.ret
-                        || arg.type == this.types.esc
-                        || arg.type == this.types.br
-                    ) {
-                        meta.type = arg.type;
-                        retValue = val;
-                        ret = true;
-                        break;
-                    }
-                    meta.type = arg.meta.type;
-                    if (
-                        arg.meta.type == this.types.ret
-                        || arg.meta.type == this.types.esc
-                        || arg.meta.type == this.types.br
-                    ) {
-                        retValue = val;
-                        ret = true;
-                        break;
-                    }
-                }
-                if (hooks) {
-                    if (hooks.punctuation) {
-                        hooks.punctuation(ret, retValue, meta.type, self);
-                    }
-                    if (meta.type == this.types.ret && hooks.return) {
-                        hooks.return(retValue, meta.type, self);
-                    }
-                    if (meta.type == this.types.esc && hooks.esc) {
-                        hooks.esc(retValue, meta.type, self);
-                    }
-                    if (meta.type == this.types.br && hooks.break) {
-                        hooks.break(retValue, meta.type, self);
-                    }
-                }
-                return retValue;
+        this.punctuation = (args, meta, self) => {
+            if (meta.executedflag) {
+                return meta.retValue;
             }
+            meta.executedflag = true;
+            let namespace = meta.rootnamespace;
+            let retValue = undefined;
+            let ret = false;
+            const argv = args.map(o => {
+                return Object.defineProperty(o, 'val', {
+                    get: function () {
+                        if (o.meta.executedflag) {
+                            namespace = o.rootnamespace;
+                        }
+                        if (namespace) {
+                            o.rootnamespace = namespace;
+                        } else {
+                            o.rootnamespace = new property();
+                        }
+                        const val = o.value;
+                        namespace = o.rootnamespace;
+                        return val;
+                    }
+                });
+            });
+            if (hooks && hooks.alternative) {
+                meta.retValue = hooks.alternative(argv, meta, self, this.types);
+                return meta.retValue;
+            }
+            for (let arg of argv) {
+                const val = arg.val;
+                if (hooks && hooks.values) {
+                    hooks.values(val, arg.type, self, arg);
+                }
+                if (
+                    arg.type == this.types.ret
+                    || arg.type == this.types.esc
+                    || arg.type == this.types.br
+                ) {
+                    meta.type = arg.type;
+                    retValue = val;
+                    ret = true;
+                    break;
+                }
+                meta.type = arg.meta.type;
+                if (
+                    arg.meta.type == this.types.ret
+                    || arg.meta.type == this.types.esc
+                    || arg.meta.type == this.types.br
+                ) {
+                    retValue = val;
+                    ret = true;
+                    break;
+                }
+            }
+            if (hooks) {
+                if (hooks.punctuation) {
+                    hooks.punctuation(ret, retValue, meta.type, self);
+                }
+                if (meta.type == this.types.ret && hooks.return) {
+                    hooks.return(retValue, meta.type, self);
+                }
+                if (meta.type == this.types.esc && hooks.esc) {
+                    hooks.esc(retValue, meta.type, self);
+                }
+                if (meta.type == this.types.br && hooks.break) {
+                    hooks.break(retValue, meta.type, self);
+                }
+            }
+            self.rootnamespace = namespace;
+            meta.retValue = retValue;
+            return retValue;
         };
 
         for (let ops of opdefines) {
@@ -4597,6 +4631,7 @@ class ops {
                 ],
             )
         );
+        def.punctuation = this.punctuation;
         return def;
     }
 }
@@ -4774,7 +4809,15 @@ class calculator {
 
     get value() {
         const result = this.result.dependency();
-        result[0].rootnamespace = this.namespace;
+        const program = result[0].allnodes;
+        const punctuations = this.result.punctuations;
+        for (let i = 1; i < punctuations.length; i++) {
+            const horizonal = punctuations[i] - 1;
+            if (horizonal == result[0].horizonal) {
+                break;
+            }
+            program[horizonal].value;
+        }
         if (result.length != 1) {
             myconsole.implmenterror('Cannot complete parse tree.', result.length);
             result.map((v, i) => {
@@ -4794,7 +4837,15 @@ class calculator {
 
     get root() {
         const result = this.result.dependency();
-        result[0].rootnamespace = this.namespace;
+        const program = result[0].allnodes;
+        const punctuations = this.result.punctuations;
+        for (let i = 1; i < punctuations.length; i++) {
+            const horizonal = punctuations[i] - 1;
+            if (horizonal == result[0].horizonal) {
+                break;
+            }
+            program[horizonal].value;
+        }
         if (result.length != 1) {
             myconsole.implmenterror('Cannot complete parse tree.', result.length);
             result.map((v, i) => {

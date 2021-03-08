@@ -12,7 +12,7 @@ class csvconfig {
                 if (argc == 0) {
                     return [['']];
                 }
-                const value = arg.value;
+                const value = arg.val;
                 const typename = arg.type;
                 if (typename == this.typeword) {
                     return [[value]];
@@ -82,7 +82,7 @@ class csvconfig {
                     null,
                     (val) => {
                         const str = val.slice(1, -1).replace(new RegExp(this.esc + this.close, 'g'), this.close);
-                        console.log(str);
+                        //console.log(str);
                         return str;
                     },
                     "string", null, 0,
@@ -111,7 +111,7 @@ class csvconfig {
                     },
                     null,
                     (val) => {
-                        console.log(val);
+                        //console.log(val);
                         return val;
                     },
                     "string", null, 0,
