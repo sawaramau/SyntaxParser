@@ -4515,7 +4515,7 @@ class ops {
                 return Object.defineProperty(o, 'val', {
                     get: function () {
                         if (o.meta.executedflag) {
-                            namespace = o.rootnamespace;
+                            namespace = o.meta.rootnamespace;
                         }
                         if (namespace) {
                             o.rootnamespace = namespace;
@@ -4523,7 +4523,7 @@ class ops {
                             o.rootnamespace = new property();
                         }
                         const val = o.value;
-                        namespace = o.rootnamespace;
+                        namespace = o.meta.rootnamespace;
                         return val;
                     }
                 });
@@ -4572,7 +4572,7 @@ class ops {
                     hooks.break(retValue, meta.type, self);
                 }
             }
-            self.rootnamespace = namespace;
+            meta.rootnamespace = namespace;
             meta.retValue = retValue;
             return retValue;
         };
