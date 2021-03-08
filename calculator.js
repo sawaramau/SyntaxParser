@@ -3094,14 +3094,14 @@ class interpretation {
         this._confirm = val;
     }
 
+    get _value() {
+        this.args.map(arg => {
+            arg.parent = this;
+        });
+        return this.define.formula(this.args, this.meta, this);
+    }
+
     get value() {
-        //if (!this.calculated) {
-            this.args.map(arg => {
-                arg.parent = this;
-            });
-            this._value = this.define.formula(this.args, this.meta, this);
-            //this.calculated = true;
-        //}
         return this._value;
     }
 
@@ -4512,7 +4512,7 @@ class ops {
             let retValue = undefined;
             let ret = false;
             const argv = args.map(o => {
-                return Object.defineProperty(o, 'val', {
+                return Object.defineProperty(o, 'value', {
                     get: function () {
                         if (o.meta.executedflag) {
                             namespace = o.meta.rootnamespace;
@@ -4522,7 +4522,7 @@ class ops {
                         } else {
                             o.rootnamespace = new property();
                         }
-                        const val = o.value;
+                        const val = o._value;
                         namespace = o.meta.rootnamespace;
                         return val;
                     }
@@ -4533,7 +4533,7 @@ class ops {
                 return meta.retValue;
             }
             for (let arg of argv) {
-                const val = arg.val;
+                const val = arg.value;
                 if (hooks && hooks.values) {
                     hooks.values(val, arg.type, self, arg);
                 }
@@ -4839,6 +4839,7 @@ class calculator {
         const result = this.result.dependency();
         const program = result[0].allnodes;
         const punctuations = this.result.punctuations;
+        console.log(punctuations.length, punctuations);
         for (let i = 1; i < punctuations.length; i++) {
             const horizonal = punctuations[i] - 1;
             if (horizonal == result[0].horizonal) {

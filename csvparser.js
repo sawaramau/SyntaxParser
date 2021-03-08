@@ -12,7 +12,7 @@ class csvconfig {
                 if (argc == 0) {
                     return [['']];
                 }
-                const value = arg.val;
+                const value = arg.value;
                 const typename = arg.type;
                 if (typename == this.typeword) {
                     return [[value]];
