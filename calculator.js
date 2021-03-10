@@ -1,3 +1,5 @@
+const performance = require('perf_hooks').performance;
+
 // 演算子の定義など、解析器が必要とする基礎情報をまとめて保持するクラス
 class config {
     constructor(opdefs, punctuations, puncblanks, hooks, reserved) {
@@ -3505,6 +3507,12 @@ class contexts {
         }
         this._prevpunc.splice(index, 0, val);
     }
+
+    confirm(node) {
+        //this.confirmed[node.horizonal] = node;
+        this.program[node.horizonal] = this.program[node.horizonal].filter(v => v.vertical == node.vertical);
+        this.program[node.horizonal][0].context = this.program[node.horizonal][0].context.filter(v => v.vertical == node.vertical);
+    }
     get confirmed() {
         if (this._confirmed === undefined) {
             this._confirmed = [];
@@ -3547,7 +3555,7 @@ class contexts {
                             this.prevpunc = node.horizonal + 1;
                         } 
                         // node.confirm = true;
-                        this.confirmed[node.horizonal] = node;
+                        this.confirm(node);
                         //node.value;
                     }
                     // 文末表現のその他の子要素は文末表現を超えられる解釈を持たないので、子要素については総じて確定と考える
@@ -3555,7 +3563,6 @@ class contexts {
                     node.allchildtrees.map(v => confirmed(v));
                 }
                 dep.map(root => {
-                    //this.confirmed[root.horizonal] = root;
                     confirmed(root);
                 });
             }
@@ -3589,8 +3596,6 @@ class contexts {
         const program = [];
         for (let context of src.slice(start, end)) {
             const array = [];
-            const horizonal = context[0].horizonal;
-            const confirmed = this.confirmed[horizonal];
             for (let def of context) {
                 if (!def) {
                     array.push(undefined);
@@ -3606,17 +3611,7 @@ class contexts {
                     return clone;
                 })()
                 clone.offset = start;
-                if (confirmed) {
-                    if (confirmed.vertical != clone.vertical) {
-                        clone.invalid = true;
-                        //array.push(clone);
-                    } else {
-                        array.push(clone);
-                    }
-                } else {
-                    array.push(clone);
-                }
-            
+                array.push(clone);
             }
             program.push(array);
         }
@@ -3651,6 +3646,7 @@ class contexts {
     }
 
     retree(program) {
+        const startTime = performance.now();
         let nexter;
         // roots: 解析木の根の集合（現状の1解釈分のみ）
         // [interpretation, interpretation, ...] <- only tree root
@@ -3857,6 +3853,10 @@ class contexts {
             }
             return false;
         });
+        const endTime = performance.now();
+        if (this.performance) {
+            console.log('retree onece', endTime - startTime);
+        }
 
         if (first) {
             // 結合可能な要素があるので、ツリーを再構成
@@ -4002,6 +4002,9 @@ class contexts {
         }
         // フラットな状態の式をコピー
         const program = this.extraction(this.program, start, end);
+        if (this.performance) {
+            console.log('first program length, interpretations:', program.length, program.map(v => v.length).reduce((acc, v) => acc+ v, 0));
+        }
         // 既に無効な解釈の削除と囲み系の事前計算済み解釈の注入
         this.squash(program, start);
 
@@ -4037,8 +4040,19 @@ class contexts {
         if (end === undefined) {
             end = this.program.length;
         }
+        const depstart = performance.now();
         const program = this.mintrees(start, end);
+        const mintreesend = performance.now();
+        if (this.performance) {
+            console.log('mintrees complete', mintreesend - depstart);
+        }
         const trees = this.retree(program);
+        const retreeend = performance.now();
+        if (this.performance) {
+            console.log('mintrees-retree', retreeend - mintreesend);
+        }
+        /*
+        // エラー検知用のためだけのコードだったけれども、
         const nodes = trees.reduce((acc, cur) => {
             for (let node of cur.allnodes) {
                 acc.push(node);
@@ -4052,6 +4066,7 @@ class contexts {
                 myconsole.implmenterror(n.parent.horizonal, v.parent.horizonal, itemtype.string(v.parent.type), itemtype.string(n.parent.type));
             }
         });
+        */
         return trees;
     }
 
@@ -4835,11 +4850,29 @@ class calculator {
         return new interpretation(this.config.ops.undefined).value;
     }
 
+    memorylog(msg) {
+
+        let used = process.memoryUsage();
+        let messages = [];
+        for (let key in used) {
+            messages.push(`${key}: ${Math.round(used[key] / 1024 / 1024 * 100) / 100} MB`);
+        }
+        if (msg) {
+            console.log(msg);
+        }
+        console.log(messages.join(','));
+    }
+
     get root() {
+        this.result.performance = true;
+
+        this.memorylog('before dependency');
         const result = this.result.dependency();
+        this.memorylog('after dependency');
+        this.result.performance = false;
         const program = result[0].allnodes;
         const punctuations = this.result.punctuations;
-        console.log(punctuations.length, punctuations);
+        console.log('punctuation execution start', punctuations.length, punctuations);
         for (let i = 1; i < punctuations.length; i++) {
             const horizonal = punctuations[i] - 1;
             if (horizonal == result[0].horizonal) {
@@ -4847,6 +4880,7 @@ class calculator {
             }
             program[horizonal].value;
         }
+        console.log('punctuations executed complete');
         if (result.length != 1) {
             myconsole.implmenterror('Cannot complete parse tree.', result.length);
             result.map((v, i) => {
@@ -4855,6 +4889,7 @@ class calculator {
             });
         }
         const val = result[0].value;
+        this.memorylog('after value');
         return val;
     }
 
@@ -4890,5 +4925,5 @@ module.exports = {
     opdefine,
     typeset,
     property,
-    calculator
+    calculator,
 };
