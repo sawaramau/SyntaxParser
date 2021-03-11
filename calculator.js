@@ -3589,19 +3589,20 @@ class contexts {
         if (this._prevpunc === undefined) {
             this._prevpunc = [0];
         }
-        let index = 0;
-        for (index = 0; index < this._prevpunc.length; index++) {
+        let index = this._prevpunc.length - 1;
+        for (let i = 0; i < this._prevpunc.length; i++) {
             if (this._prevpunc[index] == val) {
                 index = -1;
                 break;
-            } else if (this._prevpunc[index] > val) {
+            } else if (this._prevpunc[index] < val) {
                 break;
             }
+            index--;
         }
         if (index < 0) {
             return;
         }
-        this._prevpunc.splice(index, 0, val);
+        this._prevpunc.splice(index + 1, 0, val);
     }
 
     get latest() {
@@ -3696,14 +3697,11 @@ class contexts {
             return;
         }
         this.program.push(context);
+
         if (maxpriority <= this.config.ops.puncpriority) {
             this.prevpunc = this.program.length;
+
             if (this.prevend > 0) {
-                if (this.tmpcount === undefined) {
-                    this.tmpcount = 0;
-                }
-                this.tmpcount++;
-                const startTime = performance.now();
                 const end = this.prevend;
                 const start = this.prevpunc;
                 const predict = (() => {
@@ -3733,13 +3731,9 @@ class contexts {
                         this.confirm(root, predict, end);
                     });
                 }
-                const endTime = performance.now();
-                if (this.performance) {
-                    console.log('Partial dependency resolve', endTime - startTime, start, end);
-                }
+
             }
         }
-
     }
 
     get width() {
@@ -5026,12 +5020,10 @@ class calculator {
     }
 
     get root() {
-        //this.result.performance = true;
         this.memorylog('before dependency');
         const result = this.result.dependency();
         console.log(this.result.program.length, this.result.program.map(v => v.length).reduce((acc, v) => acc + v, 0));
         this.memorylog('after dependency');
-        this.result.performance = false;
         const program = result[0].allnodes;
         const punctuations = this.result.punctuations;
         console.log('punctuation execution start', punctuations.length, punctuations);
@@ -5073,9 +5065,7 @@ class calculator {
             words.push(read.keyword);
         }
         this.memorylog('read text');
-        //this.result.performance = true;
         words.map(word => this.result.read(word));
-        console.log('Partial dependency resolve count: ', this.result.tmpcount);
         this.memorylog('read contexts');
         return this.result;
     }
