@@ -1649,7 +1649,15 @@ class config {
         ];
         this.ops = new ops(this.opdefs, this.punctuations, this.puncblanks, this.hooks, this.reserved);
     }
-
+    get predict() {
+        if (this._predict === undefined) {
+            this.predict = false;
+        }
+        return this._predict;
+    }
+    set predict(val) {
+        this._predict = val;
+    }
     // text : mystrクラス
     // テキストを先頭から読み込んで、最長の解釈が可能な演算子を取得
     getword(text) {
@@ -3447,6 +3455,92 @@ class context {
 
 }
 
+class predictor {
+    constructor(program) {
+        this.init(program);
+        this._start = program[0][0].horizonal;
+        this._end = program[program.length - 1][0].horizonal;
+    }
+    compare(others) {
+        if (this.length != others.length) {
+            return false;
+        }
+        for (let i = 0; i < this.length; i++) {
+            const self = this.hash[i];
+            const other = others.hash[i];
+            if (self != other) {
+                return false;
+            }
+        }
+        return true;
+        for (let i = 0; i < this.length; i++) {
+            const self = this.program[i];
+            const other = others.program[i];
+            if (self.length != other.length) {
+                return false;
+            }
+            for (let j = 0; j < self.length; j++) {
+                if (
+                    !(
+                        self[j].priority == other[j].priority
+                        && self[j].order == other[j].order
+                        && self[j].left == other[j].left
+                        && self[j].right == other[j].right
+                        && self[j].vertical == other[j].vertical
+                    )
+                ) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    get hash() {
+        if (this._hash !== undefined) {
+            return this._hash;
+        }
+        this._hash = this.program.map(v => {
+            return v.reduce((acc, node) => {
+                acc = acc << 8;
+                acc |= ((node.priority << 5) | (node.order << 4) | (node.left << 3) | (node.right << 2) | (node.vertical));
+                return acc;
+            }, 0);
+        });
+        return this._hash;
+    }
+
+    get length() {
+        return this._end - this._start + 1;
+    }
+    get program() {
+        return this._contexts;
+    }
+    init(program) {
+        this._contexts = program.map(context => {
+            return context.map(interpretation => {
+                return {
+                    priority: interpretation.priority,
+                    order: interpretation.define.order,
+                    left: interpretation.define.left, right: interpretation.define.right,
+                    vertical: interpretation.vertical,
+                };
+            });
+        });
+    }
+    get confirms() {
+        if (this._confirms === undefined) {
+            this._confirms = [];
+        }
+        return this._confirms;
+    }
+    confirmed(node) {
+        this.confirms[node.horizonal - this._start] = {
+            priority: node.priority,
+            vertical: node.vertical
+        };
+    }
+}
+
 // 式を読み込んで全体的な解釈をするクラス
 class contexts {
     get ptr() {
@@ -3486,6 +3580,8 @@ class contexts {
         const index = this._prevpunc.length - (this.distance + 1);
         if (index < this.width) {
             return -1;
+        } else if (this._prevpunc[index - this.width] < this.latest) {
+            return -1;
         }
         return this._prevpunc[index];
     }
@@ -3508,10 +3604,45 @@ class contexts {
         this._prevpunc.splice(index, 0, val);
     }
 
-    confirm(node) {
-        //this.confirmed[node.horizonal] = node;
+    get latest() {
+        if (this._latest === undefined) {
+            this.latest = 0;
+        }
+        return this._latest;
+    }
+    set latest(val) {
+        if (this._latest === undefined || this._latest < val) {
+            this._latest = val;
+        }
+    }
+
+    confirmbody(node) {
+        this.latest = node.horizonal;
         this.program[node.horizonal] = this.program[node.horizonal].filter(v => v.vertical == node.vertical);
         this.program[node.horizonal][0].context = this.program[node.horizonal][0].context.filter(v => v.vertical == node.vertical);
+        
+    }
+
+    confirm(node, prd, end) {
+        const confirmed = (node) => {
+            // horizonal == end - 1 は現状の末尾であるが、後続によって解釈が変わるので必ず確定できない。
+            if (!(node.horizonal == end - 1)) {
+                // punkblankが確定的に文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
+                // * 再検討されると、自身の左手側が存在しないパターンが発生する
+                if (node.priority < 2 && this.config.ops.ispuncblank(node.first)) {
+                    this.prevpunc = node.horizonal + 1;
+                }
+                this.confirmbody(node);
+                if (this.config.predict && prd) {
+                    prd.confirmed(node);
+                }
+            }
+            // 文末表現のその他の子要素は文末表現を超えられる解釈を持たないので、子要素については総じて確定と考える
+            node.allchildren.map(v => confirmed(v));
+            node.allchildtrees.map(v => confirmed(v));
+        }
+        confirmed(node);
+        //this.confirmed[node.horizonal] = node;
     }
     get confirmed() {
         if (this._confirmed === undefined) {
@@ -3519,22 +3650,47 @@ class contexts {
         }
         return this._confirmed;
     }
-    push(keyword) {
+    get predictor() {
+        if (this._predictor === undefined) {
+            this._predictor = [];
+        }
+        return this._predictor;
+    }
+
+    set predictor(val) {
+        if (this.predictor[val.length - 1] === undefined) {
+            this.predictor[val.length - 1] = [];
+        }
+        this.predictor[val.length - 1].push(val);
+    }
+
+    compare(start, end) {
+        const prd = new predictor(this.program.slice(start, end));
+        if (this.predictor[prd.length - 1] === undefined) {
+            return prd;
+        }
+        for(let i = 0; i < this.predictor[prd.length - 1].length; i++) {
+            if (this.predictor[prd.length - 1][i].compare(prd)) {
+                return this.predictor[prd.length - 1][i];
+            }
+        }
+        return prd;
+    }
+
+    read(keyword) {
         const context = this.context(keyword).sort((l, r) => {
             return l.priority - r.priority;
         });
-
-        let i = 0;
+        
         let maxpriority = 0;
-        for (let interpretation of context) {
+        context.map((interpretation, index) => {
             interpretation.horizonal = this.program.length;
-            interpretation.vertical = i;
+            interpretation.vertical = index;
             interpretation.context = context;
-            i++;
             if (interpretation.priority > maxpriority) {
                 maxpriority = interpretation.priority;
             }
-        }
+        });
 
         if (context.length == 0) {
             return;
@@ -3543,28 +3699,44 @@ class contexts {
         if (maxpriority <= this.config.ops.puncpriority) {
             this.prevpunc = this.program.length;
             if (this.prevend > 0) {
+                if (this.tmpcount === undefined) {
+                    this.tmpcount = 0;
+                }
+                this.tmpcount++;
+                const startTime = performance.now();
                 const end = this.prevend;
                 const start = this.prevpunc;
-                const dep = this.dependency(start, end);
-                const confirmed = (node) => {
-                    // horizonal == end - 1 は現状の末尾であるが、後続によって解釈が変わるので必ず確定できない。
-                    if (!(node.horizonal == end - 1)) {
-                        // punkblankが確定的に文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
-                        // * 再検討されると、自身の左手側が存在しないパターンが発生する
-                        if (node.priority < 2 && this.config.ops.ispuncblank(node.first)) {
-                            this.prevpunc = node.horizonal + 1;
-                        } 
-                        // node.confirm = true;
-                        this.confirm(node);
-                        //node.value;
+                const predict = (() => {
+                    if (!this.config.predict) {
+                        return {confirms:[]};
                     }
-                    // 文末表現のその他の子要素は文末表現を超えられる解釈を持たないので、子要素については総じて確定と考える
-                    node.allchildren.map(v => confirmed(v));
-                    node.allchildtrees.map(v => confirmed(v));
+                    return this.compare(start, end+1);
+                })();
+                if (predict.confirms.length) {
+                    predict.confirms.filter(v => v).map((v, i) => {
+                        return {
+                            horizonal: i + start,
+                            vertical: v.vertical
+                        };
+                    }).map(node => {
+                        this.confirmbody(node);
+                        this.latest = node.horizonal;
+                        this.program[node.horizonal] = this.program[node.horizonal].filter(v => v.vertical == node.vertical);
+                        this.program[node.horizonal][0].context = this.program[node.horizonal][0].context.filter(v => v.vertical == node.vertical);
+                    });
+                } else {
+                    if (this.config.predict) {
+                        this.predictor = predict;
+                    }
+                    const dep = this.dependency(start, end);
+                    dep.map(root => {
+                        this.confirm(root, predict, end);
+                    });
                 }
-                dep.map(root => {
-                    confirmed(root);
-                });
+                const endTime = performance.now();
+                if (this.performance) {
+                    console.log('Partial dependency resolve', endTime - startTime, start, end);
+                }
             }
         }
 
@@ -3572,13 +3744,13 @@ class contexts {
 
     get width() {
         if (this._width === undefined) {
-            this.width = 2;
+            this.width = (this.config.width + 1) || 2;
         }
         return this._width;
     }
     get distance() {
         if (this._distance === undefined) {
-            this.distance = 0;
+            this.distance = this.config.distance || 0;
         }
         return this._distance;
     }
@@ -3646,7 +3818,6 @@ class contexts {
     }
 
     retree(program) {
-        const startTime = performance.now();
         let nexter;
         // roots: 解析木の根の集合（現状の1解釈分のみ）
         // [interpretation, interpretation, ...] <- only tree root
@@ -3853,10 +4024,6 @@ class contexts {
             }
             return false;
         });
-        const endTime = performance.now();
-        if (this.performance) {
-            console.log('retree onece', endTime - startTime);
-        }
 
         if (first) {
             // 結合可能な要素があるので、ツリーを再構成
@@ -4002,9 +4169,6 @@ class contexts {
         }
         // フラットな状態の式をコピー
         const program = this.extraction(this.program, start, end);
-        if (this.performance) {
-            console.log('first program length, interpretations:', program.length, program.map(v => v.length).reduce((acc, v) => acc+ v, 0));
-        }
         // 既に無効な解釈の削除と囲み系の事前計算済み解釈の注入
         this.squash(program, start);
 
@@ -4039,18 +4203,16 @@ class contexts {
         }
         if (end === undefined) {
             end = this.program.length;
+            if (start == 0) {
+                const prevpunc = this.prevpunc;
+                const dep = this.dependency(prevpunc, end);
+                dep.map(root => {
+                    this.confirm(root, undefined, end + 1);
+                });
+            }
         }
-        const depstart = performance.now();
         const program = this.mintrees(start, end);
-        const mintreesend = performance.now();
-        if (this.performance) {
-            console.log('mintrees complete', mintreesend - depstart);
-        }
         const trees = this.retree(program);
-        const retreeend = performance.now();
-        if (this.performance) {
-            console.log('mintrees-retree', retreeend - mintreesend);
-        }
         /*
         // エラー検知用のためだけのコードだったけれども、
         const nodes = trees.reduce((acc, cur) => {
@@ -4864,10 +5026,10 @@ class calculator {
     }
 
     get root() {
-        this.result.performance = true;
-
+        //this.result.performance = true;
         this.memorylog('before dependency');
         const result = this.result.dependency();
+        console.log(this.result.program.length, this.result.program.map(v => v.length).reduce((acc, v) => acc + v, 0));
         this.memorylog('after dependency');
         this.result.performance = false;
         const program = result[0].allnodes;
@@ -4910,7 +5072,11 @@ class calculator {
             const read = this.config.getword(this.code);
             words.push(read.keyword);
         }
-        words.map(word => this.result.push(word));
+        this.memorylog('read text');
+        //this.result.performance = true;
+        words.map(word => this.result.read(word));
+        console.log('Partial dependency resolve count: ', this.result.tmpcount);
+        this.memorylog('read contexts');
         return this.result;
     }
 }
