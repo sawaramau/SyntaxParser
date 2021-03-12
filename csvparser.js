@@ -13,7 +13,7 @@ class csvconfig {
                     return [['']];
                 }
                 const value = arg.value;
-                const typename = arg.type;
+                const typename = arg.define.groupid;
                 if (typename == this.typeword) {
                     return [[value]];
                 }
@@ -85,7 +85,7 @@ class csvconfig {
                         //console.log(str);
                         return str;
                     },
-                    "string", null, 0,
+                    this.typeword, null, 0,
                     new Calc.typeset(
                         [
                         ],
@@ -114,7 +114,7 @@ class csvconfig {
                         //console.log(val);
                         return val;
                     },
-                    "string", null, 0,
+                    this.typeword, null, 0,
                     new Calc.typeset(
                         [
                         ],
@@ -150,7 +150,7 @@ class csvconfig {
                 ),
             ],
         ];
-        this.config = new Calc.config(this.opdefs, this.punctuations, [], this.hooks, []);
+        this.config = new Calc.config(this.opdefs, this.punctuations, [], this.hooks, [], []);
         this.config.predict = true;
         this.config.width = 8; // この数字上げてもあんまり効果ない。たぶん解釈以外の部分で遅い。
         this.priority = this.config.ops.maxpriority;

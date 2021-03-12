@@ -2,7 +2,7 @@ const performance = require('perf_hooks').performance;
 
 // 演算子の定義など、解析器が必要とする基礎情報をまとめて保持するクラス
 class config {
-    constructor(opdefs, punctuations, puncblanks, hooks, reserved) {
+    constructor(opdefs, punctuations, puncblanks, hooks, reserved, controls) {
         this.join = module.exports.join.orders;
         this.types = itemtype.types();
         this.opdefine = (grammer, order, formula, groupid, meta, root = 0, inouts = null) => {
@@ -254,7 +254,7 @@ class config {
                     this.join.order.right,
                     (argv, meta) => {
                         meta.type = this.types.ret;
-                        return new interpretation(this.ops.undefined);
+                        return new interpretation();
                     },
                     "return", null, 0,
                     this.typeset(
@@ -2023,6 +2023,8 @@ class mystr {
 // 入力セットに対する出力を定義するクラス
 class typeset {
     constructor(inputs, outputs, unavailables, delegates) {
+        // current no use
+        return;
         // inputs: [[input1 type, input2 type,...], [], [],...]
         // outpust: [input set1 output, input set2 output]
         // unavailables: [[input1 unavailable1, input1 unavailable2,...], [input2 unavailable1, input2 unavailable2,...]]
@@ -2040,6 +2042,7 @@ class typeset {
     }
 
     shift(terms = 1) {
+        return new typeset();
         const inputs = this.inputs.map(input => input.slice());
         const unavailables = this.unavailables.slice();
         while (terms) {
@@ -2067,6 +2070,7 @@ class typeset {
 
     gettype(node) {
         // node: interpretation
+        return undefined;
         if (!this._outputs || this._outputs.length == 0) {
             myconsole.defineerror("Output type undefined");
             return undefined;
@@ -2183,6 +2187,13 @@ class order {
 // 命令定義用クラス
 class opdefine {
     constructor(grammer, order, formula, groupid, meta, root = 0, inouts = null) {
+        if (grammer === undefined) {
+            this.grammer = ['undefined'];
+            this.formula = () => {
+                return undefined;
+            };
+            return;
+        }
         this.grammer = grammer;
         this.order = order;
         this.formula = formula;
@@ -2464,7 +2475,7 @@ class interpretation {
     // offsetは部分的な構文解析時に使用
     constructor(define, parent, offset = 0) {
         if (define === undefined) {
-            myconsole.implmenterror("Unexpected define. This is undefined", parent);
+            define = new opdefine();//myconsole.implmenterror("Unexpected define. This is undefined", parent);
         }
 
         this._invalid = false;
@@ -5015,7 +5026,7 @@ class calculator {
         ) {
             return val.value;
         }
-        return new interpretation(this.config.ops.undefined).value;
+        return new interpretation().value;
     }
 
     memorylog(msg) {
