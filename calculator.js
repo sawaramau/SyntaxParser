@@ -1238,7 +1238,7 @@ class config {
                 ),
 
                 this.opdefine(
-                    ["{", 1, "}"],
+                    [(val) => { return val == "{"; }, 1, (val) => { return val == "}"; }],
                     this.join.order.left,
                     (argv, meta) => {
                         argv[0].property = new property();
@@ -3381,7 +3381,7 @@ class context {
     }
 
     push(interpretation) {
-        if (interpretation.define.first != this.first) {
+        if (!interpretation.define.match (this.first)){
             myconsole.implmenterror("Unmatch operator", interpretation.fullgrammer, ",", this.first);
         }
         if (!interpretation.nexter) {
@@ -3425,15 +3425,20 @@ class context {
     get contexts() {
         const contexts = {};
         contexts.nexters = {};
+        contexts.functions = [];
         for (let def of this.context) {
             const nexter = def.nexter;
             if (!nexter || def.invalid || nexter.invalid) {
                 // なにもしない
                 continue;
-            } else if (!(nexter.first in contexts.nexters)) {
-                contexts.nexters[nexter.first] = new context(nexter.first);
+            } else if (typeof nexter.first == 'string') {
+                if (!(nexter.first in contexts.nexters)) {
+                    contexts.nexters[nexter.first] = new context(nexter.first);
+                }
+                contexts.nexters[nexter.first].push(nexter);
+            } else {
+                contexts.functions.push(nexter);
             }
-            contexts.nexters[nexter.first].push(nexter);
         }
         return contexts;
     }
@@ -4433,14 +4438,15 @@ class contexts {
         // ・共通の開始子を持つ兄弟の中で、自分より優先度の低い要素が閉じた上に上位の文脈の結合子に至った
         let i;
         for (let index = 0; index < this._temporary.length; index++) {
-            const contexts = this._temporary[index].contexts;
+            const result = this._temporary[index].contexts;
+            const contexts = result.nexters[keyword] || new context(keyword);
+            result.functions.filter(v => v.define.matchfunction(keyword)).map(v => contexts.push(v));
             const closed = this._temporary[index].closed;
-            if (keyword in contexts.nexters) {
-                const nexters = contexts.nexters[keyword].context.sort((l, r) => {
+            if (contexts.length) {
+                const nexters = contexts.context.sort((l, r) => {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
                 this._temporary[index] = new context(keyword);
-
                 const roots = this.dependency(nexters.find(v => !v.invalid).parent.horizonal + 1);
                 const length = (() => {
                     if (roots.length != 1) {
