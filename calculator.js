@@ -1238,7 +1238,13 @@ class config {
                 ),
 
                 this.opdefine(
-                    [(val) => { return val == "{"; }, 1, (val) => { return val == "}"; }],
+                    [(val) => { return val == "{"; }, 1, 
+                    (val, ptr, self) => {
+                        if (self) {
+                            // selfは意味の解釈時にしか付かない。
+                        }
+                        return val == "}"; 
+                    }],
                     this.join.order.left,
                     (argv, meta) => {
                         argv[0].property = new property();
@@ -2283,7 +2289,7 @@ class opdefine {
             } else {
                 
                 if (typeof key == "function") {
-                    const hit = key(text, ptr) && ((futertext === undefined) || key(futertext, ptr, true));
+                    const hit = key(text, ptr) && ((futertext === undefined) || key(futertext, ptr));
                     if (hit) {
                         return true;
                     }
@@ -4440,7 +4446,7 @@ class contexts {
         for (let index = 0; index < this._temporary.length; index++) {
             const result = this._temporary[index].contexts;
             const contexts = result.nexters[keyword] || new context(keyword);
-            result.functions.filter(v => v.define.matchfunction(keyword)).map(v => contexts.push(v));
+            result.functions.filter(v => v.define.matchfunction(keyword, undefined, v)).map(v => contexts.push(v));
             const closed = this._temporary[index].closed;
             if (contexts.length) {
                 const nexters = contexts.context.sort((l, r) => {
