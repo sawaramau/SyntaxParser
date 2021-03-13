@@ -3225,12 +3225,13 @@ class contexts {
 
     compare(start, end) {
         const prd = new predictor(this.program.slice(start, end));
-        if (this.predictor[prd.length - 1] === undefined) {
+        const pred = this.predictor[prd.length - 1];
+        if (pred === undefined) {
             return prd;
         }
-        for(let i = 0; i < this.predictor[prd.length - 1].length; i++) {
-            if (this.predictor[prd.length - 1][i].compare(prd)) {
-                return this.predictor[prd.length - 1][i];
+        for (let i = 0; i < pred.length; i++) {
+            if (pred[i].compare(prd)) {
+                return pred[i];
             }
         }
         return prd;
@@ -3250,15 +3251,12 @@ class contexts {
                 maxpriority = interpretation.priority;
             }
         });
-
         if (context.length == 0) {
             return;
         }
         this.program.push(context);
-
         if (maxpriority <= this.config.ops.puncpriority && this.config.ops.ispunctuation(keyword)) {
             this.prevpunc = this.program.length;
-
             if (this.prevend > 0) {
                 const end = this.prevend;
                 const start = this.prevpunc;
@@ -3288,8 +3286,8 @@ class contexts {
                     dep.map(root => {
                         this.confirm(root, predict, end);
                     });
-                }
 
+                }
             }
         }
     }
