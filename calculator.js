@@ -665,7 +665,9 @@ class config {
                     (argv, meta) => {
                         argv[1].value;
                         const key = argv[1].name;
-                        return argv[0].value.map(v => v.value[key]);
+                        const arr = argv[0].value;
+                        //console.log(arr);
+                        return arr.map(v => v.value[key]);
                     },
                     "{@}"
                 ),
@@ -1556,11 +1558,20 @@ class order {
 
 class ctrldefine {
     constructor(grammer, formula, groupid) {
-        this.isfunction = typeof grammer == 'function';
         this.order = module.exports.join.orders.order.left;
         this.grammer = grammer;
         this.formula = formula;
         this.groupid = groupid;
+    }
+    get grammer() {
+        if (this.isfunction) {
+            return [this._grammer];
+        }
+        return this._grammer;
+    }
+    set grammer(val) {
+        this.isfunction = typeof val == 'function';
+        this._grammer = val;
     }
     get formula () {
         return this._formula;
@@ -1577,166 +1588,95 @@ class ctrldefine {
                     const val = o._value;
                     o.parent.meta.rootnamespace = o.meta.rootnamespace;
                     return val;
-                }
+                },
+                configurable: true
             });
         });
     }
     set formula (val) {
         this._formula = val;
     }
+    addformula(left, right) {
+        return (args, meta, self) => {
+            if (meta.executedflag) {
+                return meta.retValue;
+            }
+            const argv = this.argv(args);
+            if (left) {
+                const val1 = argv[0].value;
+                if (argv[0].meta.stop) {
+                    meta.stop = true;
+                    meta.stopinfo = argv[0].meta.stopinfo;
+                    meta.executedflag = true;
+                    meta.retValue = val1;
+                    return val1;
+                }
+            }
+            const val2 = this.formula(argv.slice(left), meta, self);
+            if (meta.stop) {
+                meta.executedflag = true;
+                meta.retValue = val2;
+                return val2;
+            }
+
+            if (right) {
+                const val3 = argv[argv.length  - 1].value;
+                if (argv[argv.length - 1].meta.stop) {
+                    meta.stop = true;
+                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
+                    meta.executedflag = true;
+                    meta.retValue = val3;
+                    return val3;
+                }
+            }
+            meta.executedflag = true;
+            meta.retValue = val2;
+            return val2;
+        }
+    }
     get solo() {
         if (this.left || this.right) {
             return undefined;
         }
-        return new opdefine(this.grammer, this.order, this.formula, this.groupid);
+        return new opdefine(this.grammer, this.order, this.addformula(0, 0), this.groupid);
     }
     get bothone() {
-        if (this.isfunction) {
-            return new opdefine([1, this.grammer, 1], this.order,
-                (args, meta, self) => {
-                    const argv = this.argv(args);
-                    const val1 = argv[0].value;
-                    if (argv[0].meta.stop) {
-                        meta.stop = true;
-                        meta.stopinfo = argv[0].meta.stopinfo;
-                        return val1;
-                    }
-                    const val2 = this.formula(argv.slice(1), meta, self);
-                    if (meta.stop) {
-                        return val2;
-                    }
-                    const val3 = argv[argv.length - 1].value;
-                    meta.stop = argv[argv.length - 1].meta.stop;
-                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
-                    return val3;
-                },
-                this.groupid
-            );
-        } else if (this.left == 0 && this.right == 0) {
-            return new opdefine([1].concat(this.grammer).concat([1]), this.order,
-                (args, meta, self) => {
-                    const argv = this.argv(args);
-                    const val1 = argv[0].value;
-                    if (argv[0].meta.stop) {
-                        meta.stop = true;
-                        meta.stopinfo = argv[0].meta.stopinfo;
-                        return val1;
-                    }
-                    const val2 = this.formula(argv.slice(1), meta, self);
-                    if (meta.stop) {
-                        return val2;
-                    }
-                    const val3 = argv[argv.length - 1].value;
-                    meta.stop = argv[argv.length - 1].meta.stop;
-                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
-                    return val3;
-                },
-                this.groupid
-            );
-        } else if (this.left == 0) {
-            return new opdefine([1].concat(this.grammer), this.order,
-                (args, meta, self) => {
-                    const argv = this.argv(args);
-                    const val = argv[0].value;
-                    if (argv[0].meta.stop) {
-                        meta.stop = true;
-                        meta.stopinfo = argv[0].meta.stopinfo;
-                        return val;
-                    }
-                    return this.formula(argv.slice(1), meta, self);
-                },
-                this.groupid
-            );
-        } else if (this.right == 0) {
-            return new opdefine(this.grammer.concat([1]), this.order,
-                (args, meta, self) => {
-                    const argv = this.argv(args);
-                    const val = this.formula(argv.slice(1), meta, self);
-                    if (meta.stop) {
-                        return val;
-                    }
-                    const val3 = argv[argv.length - 1].value;
-                    meta.stop = argv[argv.length - 1].meta.stop;
-                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
-                    return val3;
-                },
-                this.groupid
-            );
-        }
-        return new opdefine(this.grammer, this.order, this.formula, this.groupid);
+        const left = Math.max(0, 1 - this.left);
+        const right = Math.max(0, 1 - this.right);
+        return new opdefine([left].concat(this.grammer).concat([right]), this.order,
+            this.addformula(left, right),
+            this.groupid
+        );
     }
     get leftone() {
-        if (this.isfunction) {
-            return new opdefine([1, this.grammer], this.order, 
-                (args, meta, self) => {
-                    const argv = this.argv(args);
-                    const val = argv[0].value;
-                    if (argv[0].meta.stop) {
-                        meta.stop = true;
-                        meta.stopinfo = argv[0].meta.stopinfo;
-                        return val;
-                    }
-                    return this.formula(argv.slice(1), meta, self);
-                },
-                this.groupid
-            );
-        } else if (this.left == 0) {
-            return new opdefine([1].concat(this.grammer), this.order, 
-                (args, meta, self) => {
-                    const argv = this.argv(args);
-                    const val = argv[0].value;
-                    if (argv[0].meta.stop) {
-                        meta.stop = true;
-                        meta.stopinfo = argv[0].meta.stopinfo;
-                        return val;
-                    }
-                    return this.formula(argv.slice(1), meta, self);
-                },
-            this.groupid);
-        }
-        return new opdefine(this.grammer, this.order, this.formula, this.groupid);
+        const left = Math.max(0, 1 - this.left);
+        const right = 0;
+        return new opdefine([left].concat(this.grammer).concat([right]), this.order,
+            this.addformula(left, right),
+            this.groupid
+        );
     }
     get rightone() {
-        if (this.isfunction) {
-            return new opdefine([this.grammer, 1], this.order,
-                (args, meta, self) => {
-                    const argv = this.argv(args);
-                    const val = this.formula(argv, meta, self);
-                    if (meta.stop) {
-                        return val;
-                    }
-                    const val3 = argv[argv.length - 1].value;
-                    meta.stop = argv[argv.length - 1].meta.stop;
-                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
-                    return val3;
-                },
-                this.groupid
-            );
-        } else if (this.right == 0) {
-            return new opdefine(this.grammer.concat([1]), this.order,
-                (args, meta, self) => {
-                    const argv = this.argv(args);
-                    const val = this.formula(argv, meta, self);
-                    if (meta.stop) {
-                        return val;
-                    }
-                    const val3 = argv[argv.length - 1].value;
-                    meta.stop = argv[argv.length - 1].meta.stop;
-                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
-                    return val3;
-                },
-                this.groupid);
-        }
-        return new opdefine(this.grammer, this.order, this.formula, this.groupid);
+        const left = 0;
+        const right = Math.max(0, 1 - this.right);
+        return new opdefine([left].concat(this.grammer).concat([right]), this.order,
+            this.addformula(left, right),
+            this.groupid
+        );
     }
     get left() {
         if (this._left !== undefined) {
         } else if (this.isfunction) {
             this._left = 0;
-        } else if (typeof this.grammer[0] == 'number') {
-            this._left = this.grammer[0];
         } else {
             this._left = 0;
+            for (let elm of this.grammer) {
+                if (typeof elm == 'number') {
+                    this._left += elm;
+                } else {
+                    break;
+                }
+            }
         }
         return this._left;
     }
@@ -1745,10 +1685,16 @@ class ctrldefine {
         if (this._right !== undefined) {
         } else if (this.isfunction) {
             this._right = 0;
-        } else if (typeof this.grammer[this.grammer.length - 1] == 'number') {
-            this._right = this.grammer[this.grammer.length - 1];
         } else {
             this._right = 0;
+            for (let i = 0; this.grammer.length; i++) {
+                const elm = this.grammer[this.grammer.length - i - 1];
+                if (typeof elm == 'number') {
+                    this._right += elm;
+                } else {
+                    break;
+                }
+            }
         }
         return this._right;
     }
@@ -3168,10 +3114,16 @@ class contexts {
         let index = this._prevpunc.length - (this.distance + this.width + 1);
         let next = this._prevpunc[index + 1];
         let value = this._prevpunc[index];
+        // 文末表現が右に隣接しているとき左の要素も必要
         while (index > 0) {
             if (next - value > 1) {
-                // 文末表現が右に隣接しているとき左の要素も必要
-                break;
+                const range = this.program.filter((v, i) => (value <= i && i < next-1));
+                if (
+                    range.find(v => v.find(v => v.define.order != module.exports.join.orders.order.nojoin))
+                ) {
+                    break;
+                }
+                // 間の要素に空白しかないならば、実質的に文末表現ではないので次を探す。
             }
             index--;
             value = this._prevpunc[index];
@@ -4271,7 +4223,7 @@ class ops {
     }
 
     get puncpriority() {
-        return 3; // 0, 1, 2, 3
+        return 2; // 0, 1, 2
     }
 
     constructor(opdefines, punctuations, puncblanks, hooks, reserved, controls) {
@@ -4295,10 +4247,10 @@ class ops {
         this.onlyonecontrols = this.leftonly.concat(this.rightonly);
 
         this.reserved = reserved || []; // [string, sitring, ...]
-        //this.opdefines.unshift(); // priority 2
-        this.opdefines.unshift(this.solocontrols.concat(this.punctuations.map(v => this.makepunctuations(0, v, 0)))); // priority 3
-        this.opdefines.unshift(this.leftonly); // priority 2
-        this.opdefines.unshift(this.rightonly); // priority 1
+        this.opdefines.unshift(this.solocontrols.concat(this.punctuations.map(v => this.makepunctuations(0, v, 0)))); // priority 2
+        this.opdefines.unshift(this.onlyonecontrols); // priority 1
+        //this.opdefines.unshift(this.leftonly); // priority 2
+        //this.opdefines.unshift(this.rightonly); // priority 1
         this.opdefines.unshift(this.bothcontrols.concat(this._puncs.map(v => this.makepunctuations(1, v, 1)))); // priority 0
         this.opdefines.push(this.puncblanks.map(v => this.makeblank(v)));
         
@@ -4325,7 +4277,8 @@ class ops {
                         const val = o._value;
                         namespace = o.meta.rootnamespace;
                         return val;
-                    }
+                    },
+                    configurable: true
                 });
             });
             if (hooks && hooks.alternative) {
@@ -4462,6 +4415,10 @@ class property {
     }
 
     get value() {
+        return this._value;
+    }
+
+    get _value() {
         const value = {};
         for (let key of Object.keys(this._local)) {
             value[key] = this._local[key].value;
