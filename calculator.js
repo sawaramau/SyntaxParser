@@ -402,9 +402,7 @@ class config {
                         const name = argv[0].name;
                         const value = {
                             value: argv[1].value,
-                            //type: argv[1].type
                         };
-                        //meta.type = this.types.control;
                         if (property.include(name)) {
                             property.set(name, value, false);
                         } else {
@@ -637,18 +635,15 @@ class config {
                     [1, "[", "@", 1, "]"],
                     this.join.order.left,
                     (argv, meta) => {
-                        const ref = argv[0].value;
-                        if (ref) {
-
-                        }
-                        if (argv[0].type == this.types.object) {
-                            const property = argv[0].value;
+                        const val = argv[0].value;
+                        if (val instanceof property) {
+                            const property = val;
                             return argv[1].map(v => {
                                 v.property = property;
                                 return v.value;
                             });
                         }
-                        const arr = argv[0].value;
+                        const arr = val;
                         return argv[1].value.map(v => arr[v]);
                     },
                     "[@]"
@@ -694,15 +689,17 @@ class config {
                     [1, "[", 1, "]"],
                     this.join.order.left,
                     (argv, meta) => {
-                        if (argv[0].type == this.types.object) {
-                            const property = argv[0].value;
+                        const val = argv[0].value;
+                        if (val instanceof property) {
+                            const property = val
                             argv[1].property = property;
                             argv[1].value;
                             const name = argv[1].name;
                             meta.ref = property.resolve(name);
                             return meta.ref.value;
+                        } else if (val instanceof Array) {
+                            return val[argv[1].value];
                         }
-                        return argv[0].value[argv[1].value];
                     },
                     "[]"
                 ),
@@ -737,7 +734,6 @@ class config {
                         const property = argv[0].value;
                         argv[1].property = property;
                         self.property = property;
-
                         if (meta.set) {
                             argv[1].meta.set = meta.set;
                         }
@@ -1589,6 +1585,9 @@ class ctrldefine {
         this._formula = val;
     }
     get solo() {
+        if (this.left || this.right) {
+            return undefined;
+        }
         return new opdefine(this.grammer, this.order, this.formula, this.groupid);
     }
     get bothone() {
@@ -1664,7 +1663,7 @@ class ctrldefine {
                 this.groupid
             );
         }
-        return undefined;
+        return new opdefine(this.grammer, this.order, this.formula, this.groupid);
     }
     get leftone() {
         if (this.isfunction) {
@@ -1695,7 +1694,7 @@ class ctrldefine {
                 },
             this.groupid);
         }
-        return undefined;
+        return new opdefine(this.grammer, this.order, this.formula, this.groupid);
     }
     get rightone() {
         if (this.isfunction) {
@@ -1728,7 +1727,7 @@ class ctrldefine {
                 },
                 this.groupid);
         }
-        return undefined;
+        return new opdefine(this.grammer, this.order, this.formula, this.groupid);
     }
     get left() {
         if (this._left !== undefined) {
@@ -3235,9 +3234,9 @@ class contexts {
         const confirmed = (node) => {
             // horizonal == end - 1 は現状の末尾であるが、後続によって解釈が変わるので必ず確定できない。
             if (!(node.horizonal == end - 1)) {
-                // punkblankが確定的に文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
+                // punkblankを含む制御構文が確定的に文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
                 // * 再検討されると、自身の左手側が存在しないパターンが発生する
-                if (node.priority <= this.config.ops.puncpriority && this.config.ops.ispuncblank(node.first)) {
+                if (node.priority <= this.config.ops.puncpriority) {
                     this.prevpunc = node.horizonal + 1;
                 }
                 this.confirmbody(node);
@@ -3789,6 +3788,7 @@ class contexts {
             }, []);
             myconsole.implmenterror("(mintrees)Incomprehensible operators exist", fails);
             const ops = fails.map(v => program[v - start]);
+            myconsole.implmenterror([start, end]);
             myconsole.implmenterror("Operator");
             ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.define.left, v.define.right, v.priority, v.invalid, v.vertical])));
         }
@@ -4271,7 +4271,7 @@ class ops {
     }
 
     get puncpriority() {
-        return 3; // 0, 1, 2
+        return 3; // 0, 1, 2, 3
     }
 
     constructor(opdefines, punctuations, puncblanks, hooks, reserved, controls) {
@@ -4286,7 +4286,7 @@ class ops {
         this.puncblanks = puncblanks || [];
         this.punctuations = punctuations || [];
         this._puncs = this.punctuations.concat(this.puncblanks);
-        this.solocontrols = controls.map(v => v.solo);
+        this.solocontrols = controls.map(v => v.solo).filter(v => v !== undefined);
         this.leftcontrols = controls.map(v => v.leftone).filter(v => v !== undefined);
         this.rightcontrols = controls.map(v => v.rightone).filter(v => v !== undefined);
         this.bothcontrols = controls.map(v => v.bothone).filter(v => v !== undefined);
@@ -4329,11 +4329,12 @@ class ops {
                 });
             });
             if (hooks && hooks.alternative) {
-                meta.retValue = hooks.alternative(argv, meta, self, this.types);
+                meta.retValue = hooks.alternative(argv, meta, self);
                 return meta.retValue;
             }
             for (let arg of argv) {
                 const val = arg.value;
+                retValue = val;
                 if (hooks && hooks.values) {
                     hooks.values(val, arg.type, self, arg);
                 }
@@ -4342,8 +4343,6 @@ class ops {
                 ) {
                     meta.stop = true;
                     meta.stopinfo = arg.meta.stopinfo;
-                    retValue = val;
-                    ret = true;
                     break;
                 }
             }
