@@ -8,5 +8,8 @@
         "exp": "node exp.js"
     },
     "author": "",
-    "license": "MIT"
+    "license": "MIT",
+    "dependencies": {
+        "d3-node": "^2.2.2"
+    }
 }
