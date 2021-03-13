@@ -11,211 +11,158 @@ class config {
         this.typeset = (inputs, outputs, unavailables, delegates) => {
             return new typeset(inputs, outputs, unavailables, delegates);
         }
+        this.ctrldefine = (grammer, formula, groupid) => {
+            return new ctrldefine(grammer, formula, groupid);
+        };
         this.reserved = reserved || ['false', 'true', 'undefined', 'return'];
 
         this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
         this.punctuations = punctuations || [';']; // 文末として解釈される文字群
         this.hooks = hooks || {};
         this.controls = controls || 
-            // if, forなど制御構文
-            [
+        [
+            // 返り値
+            this.ctrldefine(
+                ['return'],
+                (argv, meta, self) => {
+                    meta.stop = true;
+                    meta.stopinfo = {
+                        name: 'return',
+                        return: true
+                    };
+                    if (argv.length) {
+                        return argv[0];
+                    }
+                    return new interpretation();
+                },
+                "return"
+            ),
                 // same priority group
-                this.opdefine(
-                    ["break"],
-                    this.join.order.right,
-                    (argv, meta) => {
-                        meta.type = this.types.br;
-                        return undefined;
-                    },
-                    "break", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.br],
-                        [
-                            [this.types.control],
-                        ]
-                    )
-                ),
-                this.opdefine(
-                    ["if", "(", 1, ")", "{", 1, "}"],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        meta.type = this.types.control;
-                        if (argv[0].value) {
-                            meta.success = true;
-                            const val = argv[1].value;
-                            meta.type = argv[1].meta.type;
-                            return val;
-                        }
-                        meta.success = false;
-                        return undefined;
-
-                    },
-                    "if", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.control],
-                        [
-                            [this.types.control],
-                            []
-                        ]
-                    )
-                ),
-
-                this.opdefine(
-                    [1, "else", "if", "(", 1, ")", "{", 1, "}"],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        const val = argv[0].value;
+            this.ctrldefine(
+                ["break"],
+                (argv, meta) => {
+                    meta.stop = true;
+                    meta.stopinfo = {
+                        name: 'break',
+                        break: true
+                    };
+                    return undefined;
+                },
+                "break"
+            ),
+            this.ctrldefine(
+                ["if", "(", 1, ")", "{", 1, "}"],
+                (argv, meta) => {
+                    meta.type = this.types.control;
+                    if (argv[0].value) {
                         meta.success = true;
-                        meta.type = argv[0].meta.type;
-                        if (argv[0].meta.success) {
-                            return val;
-                        } else if (argv[1].value) {
-                            const val = argv[2].value;
-                            meta.type = argv[2].meta.type;
-                            return val;
-                        }
-                        meta.success = false;
-                        return undefined;
+                        const val = argv[1].value;
+                        meta.type = argv[1].meta.type;
+                        return val;
+                    }
+                    meta.success = false;
+                    return undefined;
 
-                    },
-                    "if", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.control],
-                        [
-                            [this.types.control],
-                            []
-                        ]
-                    )
-                ),
-                this.opdefine(
-                    [1, "else", "{", 1, "}"],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        const val = argv[0].value;
-                        meta.type = argv[0].meta.type;
-                        if (argv[0].meta.success) {
-                            return val;
-                        } else {
-                            const val = argv[1].value;
-                            meta.type = argv[1].meta.type;
-                            return val;
-                        }
-                    },
-                    "if", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.control],
-                        [
-                            [this.types.control],
-                            []
-                        ]
-                    )
-                ),
-                this.opdefine(
-                    [1, "final", "{", 1, "}"],
-                    this.join.order.left,
-                    (argv) => {
-                        const val = argv[0].value;
-                        const type = argv[0].type;
-                        if (argv[0].meta.success) {
-                            if (type == this.types.ret) {
-                                return val;
-                            }
-                            return argv[1].value;
-                        }
-                    },
-                    "if", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.control],
-                        [
-                            [this.types.control],
-                            []
-                        ]
-                    )
-                ),
-                this.opdefine(
-                    ["log", "(", 1, ")"],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        console.log(argv[0].value);
-                        return undefined;
-                    },
-                    "log", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.control],
-                        [
-                            [this.types.control],
-                            []
-                        ]
-                    )
-                ),
+                },
+                "if"
+            ),
 
-                this.opdefine(
-                    ["for", "(", 1, ")", "{", 1, "}"],
-                    this.join.order.right,
-                    (argv, meta) => {
-                        argv[1].printtree();
-                        for (let i = 0; i < argv[0].value; i++) {
-                            const val = argv[1].value;
-                            meta.type = argv[1].meta.type;
-                            if (meta.type == this.types.br) {
-                                meta.type = this.types.control;
-                                return val;
-                            } else if (meta.type == this.types.ret) {
-                                return val;
-                            } else if (meta.type == this.types.esc) {
-                                return val;
-                            }
-                        }
-                        meta.type = this.types.control;
-                        return undefined;
-                    },
-                    "for", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.control],
-                        [
-                            [this.types.control],
-                            [this.types.control],
-                            [this.types.control],
-                            [],
-                        ]
-                    )
-                ),
+            this.ctrldefine(
+                [1, "else", "if", "(", 1, ")", "{", 1, "}"],
+                (argv, meta) => {
+                    const val = argv[0].value;
+                    meta.success = true;
+                    meta.type = argv[0].meta.type;
+                    if (argv[0].meta.success) {
+                        return val;
+                    } else if (argv[1].value) {
+                        const val = argv[2].value;
+                        meta.type = argv[2].meta.type;
+                        return val;
+                    }
+                    meta.success = false;
+                    return undefined;
 
-                this.opdefine(
-                    ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
-                    this.join.order.right,
-                    (argv, meta) => {
-                        meta.type = this.types.control;
-                        for (argv[0].value; argv[1].value; argv[2].value) {
-                            const r = argv[3].value;
-                            if (argv[3].meta.type == this.types.br) {
-                                return undefined;
-                            } else if (argv[3].meta.type == this.types.ret) {
-                                meta.type = this.types.ret;
-                                return r;
-                            }
+                },
+                "if"
+            ),
+            this.ctrldefine(
+                [1, "else", "{", 1, "}"],
+                (argv, meta) => {
+                    const val = argv[0].value;
+                    meta.type = argv[0].meta.type;
+                    if (argv[0].meta.success) {
+                        return val;
+                    } else {
+                        const val = argv[1].value;
+                        meta.type = argv[1].meta.type;
+                        return val;
+                    }
+                },
+                "if"
+            ),
+            this.ctrldefine(
+                [1, "final", "{", 1, "}"],
+                (argv) => {
+                    const val = argv[0].value;
+                    const type = argv[0].type;
+                    if (argv[0].meta.success) {
+                        if (type == this.types.ret) {
+                            return val;
                         }
-                        return undefined;
-                    },
-                    "for", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.control],
-                        [
-                            [this.types.control],
-                            [this.types.control],
-                            [this.types.control],
-                            [],
-                        ]
-                    )
-                ),
+                        return argv[1].value;
+                    }
+                },
+                "if"
+            ),
+            this.ctrldefine(
+                ["log", "(", 1, ")"],
+                (argv, meta) => {
+                    console.log(argv[0].value);
+                    return undefined;
+                },
+                "log"
+            ),
+
+            this.ctrldefine(
+                ["for", "(", 1, ")", "{", 1, "}"],
+                (argv, meta) => {
+                    argv[1].printtree();
+                    for (let i = 0; i < argv[0].value; i++) {
+                        const val = argv[1].value;
+                        meta.type = argv[1].meta.type;
+                        if (meta.type == this.types.br) {
+                            meta.type = this.types.control;
+                            return val;
+                        } else if (meta.type == this.types.ret) {
+                            return val;
+                        } else if (meta.type == this.types.esc) {
+                            return val;
+                        }
+                    }
+                    meta.type = this.types.control;
+                    return undefined;
+                },
+                "for"
+            ),
+
+            this.ctrldefine(
+                ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
+                (argv, meta) => {
+                    meta.type = this.types.control;
+                    for (argv[0].value; argv[1].value; argv[2].value) {
+                        const r = argv[3].value;
+                        if (argv[3].meta.type == this.types.br) {
+                            return undefined;
+                        } else if (argv[3].meta.type == this.types.ret) {
+                            meta.type = this.types.ret;
+                            return r;
+                        }
+                    }
+                    return undefined;
+                },
+                "for"
+            ),
             ];
 
         // *****同一の演算子の場合、項数の少ない演算子ほど優先度を高くすること*****
@@ -226,46 +173,6 @@ class config {
         this.opdefs = opdefs || [
             // priority order
             // next priority group
-            [
-                // 返り値系
-                this.opdefine(
-                    ['return', 1],
-                    this.join.order.right,
-                    (argv, meta, self) => {
-                        // 戻り値は型情報も含めて戻らないといけない
-                        meta.type = this.types.ret;
-                        return argv[0];
-                    },
-                    "return", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.ret],
-                        [
-                            [this.types.control],
-                        ]
-                    )
-                ),
-            ],
-
-            // 返り値
-            [
-                this.opdefine(
-                    ["return"],
-                    this.join.order.right,
-                    (argv, meta) => {
-                        meta.type = this.types.ret;
-                        return new interpretation();
-                    },
-                    "return", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.ret],
-                        [
-                            [this.types.control],
-                        ]
-                    )
-                ),
-            ],
             // 宣言
             [
                 this.opdefine(
@@ -279,17 +186,7 @@ class config {
                         argv[0].value;
                         return undefined;
                     },
-                    "{}", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.object],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "{}"
                 ),
 
                 this.opdefine(
@@ -334,17 +231,7 @@ class config {
                         argv[0].value;
                         return undefined;
                     },
-                    "{}", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.object],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "{}"
                 ),
                 this.opdefine(
                     ["drops", 1],
@@ -365,17 +252,7 @@ class config {
                         argv[0].value;
                         return undefined;
                     },
-                    "{}", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.object],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "{}"
                 ),
 
                 this.opdefine(
@@ -389,17 +266,7 @@ class config {
                         argv[0].value;
                         return undefined;
                     },
-                    "{}", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.object],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "{}"
                 ),
             ],
 
@@ -418,15 +285,7 @@ class config {
                         }
                         return val;
                     },
-                    "try", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.control],
-                        [
-                            [this.types.control],
-                            []
-                        ]
-                    )
+                    "try"
                 ),
 
 
@@ -439,17 +298,7 @@ class config {
                         argv[0].meta.type = this.types.esc;
                         return argv[0];
                     },
-                    "throw", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.esc],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "throw"
                 )
             ],
 
@@ -468,21 +317,14 @@ class config {
                                 meta.declare(name, value);
                             }
                         }
-                        if (argv[0].type == this.types.parallel) {
+                        if (argv[0] instanceof Array) {
                             const v = argv[0].value;
                             v.push(argv[1].value);
                             return v;
                         }
                         return [argv[0].value, argv[1].value];
                     },
-                    ",", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.parallel],
-                        [
-                            [this.types.control],
-                        ]
-                    )
+                    ",",
                 ),
             ],
             [
@@ -501,14 +343,7 @@ class config {
                         }
                         return [argv[0].value];
                     },
-                    ",", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.parallel],
-                        [
-                            [this.types.control],
-                        ]
-                    )
+                    ","
                 ),
             ],
             // 代入
@@ -541,17 +376,7 @@ class config {
 
                         return argv[0].value;
                     },
-                    "{}", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.object],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "{}"
                 ),
             ],
 
@@ -564,19 +389,7 @@ class config {
                     (argv) => {
                         return argv[0].value ? argv[1].value : argv[2].value;
                     },
-                    "?", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.delegate],
-                        [
-                            [this.types.control],
-                            [this.types.control],
-                        ],
-                        [(args) => {
-                            return this.types.control;
-                            args[0].value ? args[1].type : args[2].type;
-                        }]
-                    )
+                    "?"
                 ),
             ],
             [
@@ -600,14 +413,7 @@ class config {
                         }
                         return undefined;
                     },
-                    ":", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.control],
-                        [
-                            [this.types.control],
-                        ]
-                    )
+                    ":"
                 ),
             ],
             [// 論理演算3
@@ -618,14 +424,7 @@ class config {
                     (argv) => {
                         return !argv[0].value;
                     },
-                    "!", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.bool],
-                        [
-                            [this.types.control],
-                        ]
-                    )
+                    "!"
                 ),
                 // 論理演算3
                 this.opdefine(
@@ -634,14 +433,7 @@ class config {
                     (argv) => {
                         return !argv[0].value;
                     },
-                    "not", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.bool],
-                        [
-                            [this.types.control],
-                        ]
-                    )
+                    "not"
                 ),
             ],
             [// 論理演算2
@@ -656,23 +448,7 @@ class config {
                         }
                         return argv[1].value;
                     },
-                    "||", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.delegate],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                            (argv) => {
-                                return this.types.control;
-                                if (argv[0].value) {
-                                    return argv[0].type;
-                                }
-                                return argv[1].type;
-                            }
-                        ]
-                    )
+                    "||"
                 ),
             ],
             [// 論理演算2
@@ -687,23 +463,7 @@ class config {
                         }
                         return argv[1].value;
                     },
-                    "&&", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.delegate],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                            (argv) => {
-                                return this.types.control;
-                                if (!argv[0].value) {
-                                    return argv[0].type;
-                                }
-                                return argv[1].type;
-                            }
-                        ]
-                    )
+                    "&&"
                 ),
             ],
             [// bit演算
@@ -714,14 +474,7 @@ class config {
                     (argv) => {
                         return ~argv[0].value;
                     },
-                    "~", null, 0,
-                    this.typeset(
-                        [[this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "~"
                 ),
             ],
             [// bit演算
@@ -732,14 +485,7 @@ class config {
                     (argv) => {
                         return argv[0].value | argv[1].value;
                     },
-                    "|", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "|"
                 ),
             ],
             [// bit演算
@@ -750,14 +496,7 @@ class config {
                     (argv) => {
                         return argv[0].value & argv[1].value;
                     },
-                    "&", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "&"
                 ),
             ],
 
@@ -769,14 +508,7 @@ class config {
                     (argv) => {
                         return argv[0].value > argv[1].value;
                     },
-                    ">", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    ">"
                 ),
                 this.opdefine(
                     [1, "<", 1],
@@ -784,14 +516,7 @@ class config {
                     (argv) => {
                         return argv[0].value < argv[1].value;
                     },
-                    "<", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "<"
                 ),
                 this.opdefine(
                     [1, ">=", 1],
@@ -799,14 +524,7 @@ class config {
                     (argv) => {
                         return argv[0].value >= argv[1].value;
                     },
-                    ">=", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    ">="
                 ),
                 this.opdefine(
                     [1, "<=", 1],
@@ -814,14 +532,7 @@ class config {
                     (argv) => {
                         return argv[0].value <= argv[1].value;
                     },
-                    "<=", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "<="
                 ),
 
                 this.opdefine(
@@ -832,14 +543,7 @@ class config {
                         const val = argv[1].value;
                         return arr.map(v => v == val);
                     },
-                    "<=", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "<="
                 ),
             ],
 
@@ -851,14 +555,7 @@ class config {
                     (argv) => {
                         return argv[0].value + argv[1].value;
                     },
-                    "+", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.through],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "+"
                 ),
                 this.opdefine(
                     [1, "-", 1],
@@ -866,14 +563,7 @@ class config {
                     (argv) => {
                         return argv[0].value - argv[1].value;
                     },
-                    "-", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "-"
                 ),
             ],
 
@@ -885,14 +575,7 @@ class config {
                     (argv) => {
                         return argv[0].value * argv[1].value;
                     },
-                    "*", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "*"
                 ),
                 this.opdefine(
                     [1, "/", 1],
@@ -900,14 +583,7 @@ class config {
                     (argv) => {
                         return argv[0].value / argv[1].value;
                     },
-                    "/", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "/"
                 ),
                 this.opdefine(
                     [1, "%", 1],
@@ -915,14 +591,7 @@ class config {
                     (argv) => {
                         return argv[0].value % argv[1].value;
                     },
-                    "%", null, 0,
-                    this.typeset(
-                        [[this.types.number, this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "%"
                 ),
             ],
 
@@ -934,14 +603,7 @@ class config {
                     (argv) => {
                         return argv[0].value;
                     },
-                    "+", null, 0,
-                    this.typeset(
-                        [[this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "+"
                 ),
                 this.opdefine(
                     ["-", 1],
@@ -949,14 +611,7 @@ class config {
                     (argv) => {
                         return -argv[0].value;
                     },
-                    "-", null, 0,
-                    this.typeset(
-                        [[this.types.number]],
-                        [this.types.number],
-                        [
-                            [this.types.control],
-                        ],
-                    )
+                    "-"
                 ),
             ],
 
@@ -970,15 +625,7 @@ class config {
                             return argv[1].value;
                         };
                     },
-                    "{}", null, 0,
-                    this.typeset(
-                        [],
-                        [this.types.func],
-                        [
-                            [this.types.control],
-                            [this.types.parallel],
-                        ],
-                    )
+                    "{}"
                 ),
 
 
@@ -1001,23 +648,7 @@ class config {
                         const arr = argv[0].value;
                         return argv[1].value.map(v => arr[v]);
                     },
-                    "[@]", null, 0,
-                    this.typeset(
-                        [
-                            [this.types.ref, this.types.notunavailable]
-                        ],
-                        [this.types.delegate],
-                        [
-                            [this.types.control],
-                            [this.types.control],
-                        ],
-                        [
-                            (argv) => {
-                                return this.types.control;
-                                return argv[0].value[argv[1].value].type;
-                            }
-                        ],
-                    )
+                    "[@]"
                 ),
 
                 this.opdefine(
@@ -1027,23 +658,7 @@ class config {
                         const key = argv[1].value;
                         return argv[0].value.map(v => v.value[key]);
                     },
-                    "{@}", null, 0,
-                    this.typeset(
-                        [
-                            [this.types.ref, this.types.notunavailable]
-                        ],
-                        [this.types.delegate],
-                        [
-                            [this.types.control],
-                            [this.types.control],
-                        ],
-                        [
-                            (argv) => {
-                                return this.types.control;
-                                return argv[0].value[argv[1].value].type;
-                            }
-                        ],
-                    )
+                    "{@}"
                 ),
 
                 this.opdefine(
@@ -1054,23 +669,7 @@ class config {
                         const key = argv[1].name;
                         return argv[0].value.map(v => v.value[key]);
                     },
-                    "{@}", null, 0,
-                    this.typeset(
-                        [
-                            [this.types.ref, this.types.notunavailable]
-                        ],
-                        [this.types.delegate],
-                        [
-                            [this.types.control],
-                            [this.types.control],
-                        ],
-                        [
-                            (argv) => {
-                                return this.types.control;
-                                return argv[0].value[argv[1].value].type;
-                            }
-                        ],
-                    )
+                    "{@}"
                 ),
                 // operator
                 // brackets
@@ -1085,26 +684,7 @@ class config {
                         meta.type = exe.meta.type;
                         return exe.value;
                     },
-                    "()", null, 0,
-                    this.typeset(
-                        [
-                            [this.types.ref, this.types.notunavailable]
-                        ],
-                        [this.types.delegate],
-                        [
-                            [this.types.control],
-                            [this.types.control],
-                        ],
-                        [
-                            (argv) => {
-                                return this.types.control;
-                                if (argv[0].value(argv[1].value) === undefined) {
-                                    return this.types.undef;
-                                }
-                                return argv[0].value(argv[1].value).type;
-                            }
-                        ],
-                    )
+                    "()"
                 ),
 
                 this.opdefine(
@@ -1119,25 +699,10 @@ class config {
                             meta.ref = property.resolve(name);
                             return meta.ref.value;
                         }
+                        console.log(argv[0].value);
                         return argv[0].value[argv[1].value];
                     },
-                    "[]", null, 0,
-                    this.typeset(
-                        [
-                            [this.types.ref, this.types.notunavailable]
-                        ],
-                        [this.types.delegate],
-                        [
-                            [this.types.control],
-                            [this.types.control],
-                        ],
-                        [
-                            (argv) => {
-                                return this.types.control;
-                                return argv[0].value[argv[1].value].type;
-                            }
-                        ],
-                    )
+                    "[]"
                 ),
 
                 this.opdefine(
@@ -1161,14 +726,7 @@ class config {
                         }
                         return undefined;
                     },
-                    "?", null, 0,
-                    this.typeset(
-                        [[this.types.ref, this.types.ref]],
-                        [this.types.ref],
-                        [
-                            [this.types.control],
-                        ]
-                    )
+                    "?"
                 ),
                 this.opdefine(
                     [1, ".", 1],
@@ -1183,14 +741,7 @@ class config {
                         }
                         return argv[1].value;
                     },
-                    ".", null, 0,
-                    this.typeset(
-                        [[this.types.ref, this.types.ref]],
-                        [this.types.ref],
-                        [
-                            [this.types.control],
-                        ]
-                    )
+                    "."
                 ),
             ],
 
@@ -1204,15 +755,7 @@ class config {
                     (argv) => {
                         return argv[0].value;
                     },
-                    "()", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.through],
-                        [
-                            [this.types.control],
-                        ]
-                    )
+                    "()"
                 ),
                 this.opdefine(
                     ["[", 1, "]"],
@@ -1224,17 +767,7 @@ class config {
                         }
                         return [argv[0].value];
                     },
-                    "[]", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.array],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "[]"
                 ),
 
                 this.opdefine(
@@ -1252,17 +785,7 @@ class config {
                         argv[0].value;
                         return argv[0].property
                     },
-                    "{}", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.object],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "{}"
                 ),
             ],
             [
@@ -1275,17 +798,7 @@ class config {
                         meta.type = this.types.object;
                         return new property();
                     },
-                    "{}", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.object],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "{}"
                 ),
                 this.opdefine(
                     ["[", "]"],
@@ -1294,17 +807,7 @@ class config {
                         meta.type = this.types.array;
                         return [];
                     },
-                    "[]", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [this.types.array],
-                        [
-                            [this.types.control],
-                        ],
-                        [
-                        ],
-                    )
+                    "[]"
                 ),
             ],
 
@@ -1312,22 +815,11 @@ class config {
             [
                 this.opdefine(
                     ["undefined"],
-                    null,
+                    this.join.order.left,
                     () => {
                         return undefined;
                     },
-                    "undefined", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.undef
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "undefined"
                 ),
                 this.opdefine(
                     ["true"],
@@ -1335,18 +827,7 @@ class config {
                     () => {
                         return true;
                     },
-                    "bool", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.bool
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "bool"
                 ),
                 this.opdefine(
                     ['false'],
@@ -1354,18 +835,7 @@ class config {
                     () => {
                         return false;
                     },
-                    "bool", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.bool
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "bool"
                 ),
                 this.opdefine(
                     (val) => {
@@ -1375,22 +845,11 @@ class config {
                         }
                         return false;
                     },
-                    null,
+                    this.join.order.left,
                     (val) => {
                         return parseInt(val, 16);
                     },
-                    "hex", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.number
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "hex"
                 ),
                 this.opdefine(
                     (val) => {
@@ -1400,29 +859,18 @@ class config {
                         }
                         return false;
                     },
-                    null,
+                    this.join.order.left,
                     (val) => {
                         return Number(val);
                     },
-                    "dec", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.number
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "dec"
                 ),
                 this.opdefine(
                     (val, ptr) => {
                         const varreg = /^[a-zA-Z_][\w]*$/;
                         return val.match(varreg);
-                    },
-                    null,
+                    }, 
+                    this.join.order.left,
                     (val, meta, self) => {
 
                         const property = meta.property || self.rootnamespace;
@@ -1444,18 +892,7 @@ class config {
                         }
                         return undefined;
                     },
-                    "variable", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.ref
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "variable"
                 ),
 
                 this.opdefine(
@@ -1504,7 +941,7 @@ class config {
                         }
                         return false;
                     },
-                    null,
+                    this.join.order.left,
                     (val) => {
                         let org = val.slice(1, val.length - 1);
                         const escapes = [
@@ -1536,18 +973,7 @@ class config {
                         }
                         return str;
                     },
-                    "string", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.string
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "string"
                 ),
             ],
             // 空白文字等
@@ -1560,20 +986,9 @@ class config {
                         }
                         return false;
                     },
-                    this.join.order.right,
+                    this.join.order.nojoin,
                     null,
-                    "space", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.blank
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "space"
                 ),
                 this.opdefine(
                     (val, ptr) => {
@@ -1590,20 +1005,9 @@ class config {
                         }
                         return false;
                     },
-                    this.join.order.right,
+                    this.join.order.nojoin,
                     null,
-                    "space", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.blank
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "space"
                 ),
                 this.opdefine(
                     (val, ptr) => {
@@ -1636,20 +1040,9 @@ class config {
                         }
                         return false;
                     },
-                    this.join.order.right,
+                    this.join.order.nojoin,
                     null,
-                    "space", null, 0,
-                    this.typeset(
-                        [
-                        ],
-                        [
-                            this.types.blank
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    "space"
                 ),
             ],
         ];
@@ -2023,8 +1416,6 @@ class mystr {
 // 入力セットに対する出力を定義するクラス
 class typeset {
     constructor(inputs, outputs, unavailables, delegates) {
-        // current no use
-        return;
         // inputs: [[input1 type, input2 type,...], [], [],...]
         // outpust: [input set1 output, input set2 output]
         // unavailables: [[input1 unavailable1, input1 unavailable2,...], [input2 unavailable1, input2 unavailable2,...]]
@@ -2042,7 +1433,7 @@ class typeset {
     }
 
     shift(terms = 1) {
-        return new typeset();
+        //return new typeset();
         const inputs = this.inputs.map(input => input.slice());
         const unavailables = this.unavailables.slice();
         while (terms) {
@@ -2070,7 +1461,7 @@ class typeset {
 
     gettype(node) {
         // node: interpretation
-        return undefined;
+        //return undefined;
         if (!this._outputs || this._outputs.length == 0) {
             myconsole.defineerror("Output type undefined");
             return undefined;
@@ -2171,16 +1562,215 @@ class itemtype {
 // 結合順序
 class order {
     constructor() {
-        let left = myenum.define(0);
+        let nojoin = myenum.define(-1); // for blank
+        let left;
         let right;
 
         this.enum = new myenum({
+            nojoin,
             left,
-            right
+            right,
         });
     }
     get order() {
         return this.enum.enum;
+    }
+}
+
+class ctrldefine {
+    constructor(grammer, formula, groupid) {
+        this.isfunction = typeof grammer == 'function';
+        this.order = module.exports.join.orders.order.left;
+        this.grammer = grammer;
+        this.formula = formula;
+        this.groupid = groupid;
+    }
+    get formula () {
+        return this._formula;
+    }
+    argv(args) {
+        return args.map(o => {
+            return Object.defineProperty(o, 'value', {
+                get: function () {
+                    if (o.parent.meta.rootnamespace) {
+                        o.rootnamespace = o.parent.meta.rootnamespace;
+                    } else {
+                        o.rootnamespace = new property();
+                    }
+                    const val = o._value;
+                    o.parent.meta.rootnamespace = o.meta.rootnamespace;
+                    return val;
+                }
+            });
+        });
+    }
+    set formula (val) {
+        this._formula = val;
+    }
+    get solo() {
+        return new opdefine(this.grammer, this.order, this.formula, this.groupid);
+    }
+    get bothone() {
+        if (this.isfunction) {
+            return new opdefine([1, this.grammer, 1], this.order,
+                (args, meta, self) => {
+                    const argv = this.argv(args);
+                    const val1 = argv[0].value;
+                    if (argv[0].meta.stop) {
+                        meta.stop = true;
+                        meta.stopinfo = argv[0].meta.stopinfo;
+                        return val1;
+                    }
+                    const val2 = this.formula(argv.slice(1), meta, self);
+                    if (meta.stop) {
+                        return val2;
+                    }
+                    const val3 = argv[argv.length - 1].value;
+                    meta.stop = argv[argv.length - 1].meta.stop;
+                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
+                    return val3;
+                },
+                this.groupid
+            );
+        } else if (this.left == 0 && this.right == 0) {
+            return new opdefine([1].concat(this.grammer).concat([1]), this.order,
+                (args, meta, self) => {
+                    const argv = this.argv(args);
+                    const val1 = argv[0].value;
+                    if (argv[0].meta.stop) {
+                        meta.stop = true;
+                        meta.stopinfo = argv[0].meta.stopinfo;
+                        return val1;
+                    }
+                    const val2 = this.formula(argv.slice(1), meta, self);
+                    if (meta.stop) {
+                        return val2;
+                    }
+                    const val3 = argv[argv.length - 1].value;
+                    meta.stop = argv[argv.length - 1].meta.stop;
+                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
+                    return val3;
+                },
+                this.groupid
+            );
+        } else if (this.left == 0) {
+            return new opdefine([1].concat(this.grammer), this.order,
+                (args, meta, self) => {
+                    const argv = this.argv(args);
+                    const val = argv[0].value;
+                    if (argv[0].meta.stop) {
+                        meta.stop = true;
+                        meta.stopinfo = argv[0].meta.stopinfo;
+                        return val;
+                    }
+                    return this.formula(argv.slice(1), meta, self);
+                },
+                this.groupid
+            );
+        } else if (this.right == 0) {
+            return new opdefine(this.grammer.concat([1]), this.order,
+                (args, meta, self) => {
+                    const argv = this.argv(args);
+                    const val = this.formula(argv.slice(1), meta, self);
+                    if (meta.stop) {
+                        return val;
+                    }
+                    const val3 = argv[argv.length - 1].value;
+                    meta.stop = argv[argv.length - 1].meta.stop;
+                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
+                    return val3;
+                },
+                this.groupid
+            );
+        }
+        return undefined;
+    }
+    get leftone() {
+        if (this.isfunction) {
+            return new opdefine([1, this.grammer], this.order, 
+                (args, meta, self) => {
+                    const argv = this.argv(args);
+                    const val = argv[0].value;
+                    if (argv[0].meta.stop) {
+                        meta.stop = true;
+                        meta.stopinfo = argv[0].meta.stopinfo;
+                        return val;
+                    }
+                    return this.formula(argv.slice(1), meta, self);
+                },
+                this.groupid
+            );
+        } else if (this.left == 0) {
+            return new opdefine([1].concat(this.grammer), this.order, 
+                (args, meta, self) => {
+                    const argv = this.argv(args);
+                    const val = argv[0].value;
+                    if (argv[0].meta.stop) {
+                        meta.stop = true;
+                        meta.stopinfo = argv[0].meta.stopinfo;
+                        return val;
+                    }
+                    return this.formula(argv.slice(1), meta, self);
+                },
+            this.groupid);
+        }
+        return undefined;
+    }
+    get rightone() {
+        if (this.isfunction) {
+            return new opdefine([this.grammer, 1], this.order,
+                (args, meta, self) => {
+                    const argv = this.argv(args);
+                    const val = this.formula(argv, meta, self);
+                    if (meta.stop) {
+                        return val;
+                    }
+                    const val3 = argv[argv.length - 1].value;
+                    meta.stop = argv[argv.length - 1].meta.stop;
+                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
+                    return val3;
+                },
+                this.groupid
+            );
+        } else if (this.right == 0) {
+            return new opdefine(this.grammer.concat([1]), this.order,
+                (args, meta, self) => {
+                    const argv = this.argv(args);
+                    const val = this.formula(argv, meta, self);
+                    if (meta.stop) {
+                        return val;
+                    }
+                    const val3 = argv[argv.length - 1].value;
+                    meta.stop = argv[argv.length - 1].meta.stop;
+                    meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
+                    return val3;
+                },
+                this.groupid);
+        }
+        return undefined;
+    }
+    get left() {
+        if (this._left !== undefined) {
+        } else if (this.isfunction) {
+            this._left = 0;
+        } else if (typeof this.grammer[0] == 'number') {
+            this._left = this.grammer[0];
+        } else {
+            this._left = 0;
+        }
+        return this._left;
+    }
+
+    get right() {
+        if (this._right !== undefined) {
+        } else if (this.isfunction) {
+            this._right = 0;
+        } else if (typeof this.grammer[this.grammer.length - 1] == 'number') {
+            this._right = this.grammer[this.grammer.length - 1];
+        } else {
+            this._right = 0;
+        }
+        return this._right;
     }
 }
 
@@ -2200,7 +1790,20 @@ class opdefine {
         this.groupid = groupid;
         this.meta = meta; // free space. meta data
         this.root = root;
-        this._inouts = inouts;
+        //this._inouts = inouts;
+    }
+
+    get formula() {
+        return this._formula;
+    }
+    set formula(val) {
+        if (typeof val == 'function') {
+            this._formula = val;
+        } else {
+            this._formula = () => {
+                return undefined;
+            };
+        }
     }
 
     gettype(node) {
@@ -2444,7 +2047,7 @@ class opdefine {
 
         this._nexter = new opdefine(grammer, this.order, () => {
             // interpretation側で解決
-        }, this.groupid, null, this.root + 1, this._inouts.shift(this.left));
+        }, this.groupid, null, this.root + 1); //, this._inouts.shift(this.left));
 
         this._nexter.priority = this.priority;
         this._nexter.parent = this;
@@ -2504,7 +2107,7 @@ class interpretation {
         for (let i = 0; i < depth; i++) {
             blank += "    " + (i == depth - 1 ? "" : hist[i]);
         }
-        myconsole.log([" " + blank + branch, this.horizonal + "[" + this.first.replace(/(\r\n|\n|\r)/g, "\\r\\n") + "]"]);
+        myconsole.log([" " + blank + branch, this.horizonal + "[" + this.priority + ',' + this.first.replace(/(\r\n|\n|\r)/g, "\\r\\n") + "]"]);
         depth;
 
         if (left.length) {
@@ -2696,7 +2299,7 @@ class interpretation {
         this._childblanktrees = [];
         for (let op of val) {
             op.parent = this.starter;
-            if (op.type == itemtype.types().blank) {
+            if (op.define.order == module.exports.join.orders.order.nojoin) {
                 this._childblanktrees.push(op);
             } else {
                 this._childtrees.push(op);
@@ -2954,7 +2557,7 @@ class interpretation {
         const others = [];
         // roots: 自身の直系の親から根までの木構造を、自身より左手側か右手側かに分類したもの
         const roots = this.roots;
-        const blank = this.type == itemtype.types().blank;
+        const blank = this.define.order == module.exports.join.orders.order.nojoin;
         const min = {};
         const max = {};
         // 左右にある（少なくともどちらか一方は）越え（下回ら）なければならない優先度の壁
@@ -3265,14 +2868,15 @@ class interpretation {
         if (this.invalid) {
             return undefined;
         }
-        return this.define.gettype(this);
+        return undefined;
+        //this.define.gettype(this);
     }
 
     setleft(val) {
         if (this.horizonal <= val.horizonal) {
             return false;
         }
-        if (val.type == itemtype.types().blank) {
+        if (val.define.order == module.exports.join.orders.order.nojoin) {
             if (this.priority > val.priority) {
                 return false;
             }
@@ -3309,7 +2913,7 @@ class interpretation {
         if (this._parent) {
             return false;
         }
-        if (val.type == itemtype.types().blank) {
+        if (val.define.order == module.exports.join.orders.order.nojoin) {
             if (this.priority > val.priority) {
                 return false;
             }
@@ -3652,7 +3256,7 @@ class contexts {
             if (!(node.horizonal == end - 1)) {
                 // punkblankが確定的に文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
                 // * 再検討されると、自身の左手側が存在しないパターンが発生する
-                if (node.priority < 2 && this.config.ops.ispuncblank(node.first)) {
+                if (node.priority <= this.config.ops.puncpriority && this.config.ops.ispuncblank(node.first)) {
                     this.prevpunc = node.horizonal + 1;
                 }
                 this.confirmbody(node);
@@ -3720,7 +3324,7 @@ class contexts {
         }
         this.program.push(context);
 
-        if (maxpriority <= this.config.ops.puncpriority) {
+        if (maxpriority <= this.config.ops.puncpriority && this.config.ops.ispunctuation(keyword)) {
             this.prevpunc = this.program.length;
 
             if (this.prevend > 0) {
@@ -3970,7 +3574,7 @@ class contexts {
             // 元々の意味が空白だった場合、自身のツリーを食える
             const prev = interpretation.previnterpretation;
             if (prev) {
-                const blank = prev.type == itemtype.types().blank;
+                const blank = prev.define.order == module.exports.join.orders.order.nojoin;
                 if (blank) {
                     if (interpretation.horizonal < prev.root.horizonal && prev.root.priority + geta.right > interpretation.priority) {
                         // 元の木の根の左側にいるので、右手で自身の根を掴める
@@ -4141,7 +3745,7 @@ class contexts {
             return acc;
         }, []).sort((l, r) => {
             if (l.horizonal == r.horizonal) {
-                myconsole.implmenterror("Violation!", l.horizonal, l.root.horizonal, r.root.horizonal);
+                myconsole.implmenterror("Violation!", l.horizonal, l.root.horizonal, r.horizonal, r.priority, l.priority, r.define.first);
             }
             return l.horizonal - r.horizonal;
         });
@@ -4171,7 +3775,6 @@ class contexts {
             myconsole.implmenterror("Operator");
             ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid, v.define.grammer])));
         }
-
         return program;
     }
 
@@ -4206,7 +3809,7 @@ class contexts {
             myconsole.implmenterror("(mintrees)Incomprehensible operators exist", fails);
             const ops = fails.map(v => program[v - start]);
             myconsole.implmenterror("Operator");
-            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid])));
+            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.define.left, v.define.right, v.priority, v.invalid, v.vertical])));
         }
 
         return program;
@@ -4279,7 +3882,6 @@ class contexts {
             while (1) {
                 // 隣接要素のindexを計算
                 const j = index + i * step;
-
                 if ((step == -1 && j > index) || (step == 1 && j < index)) {
                     // ここはエラー
                     break;
@@ -4306,7 +3908,7 @@ class contexts {
                 let blank = false;
 
                 for (let neighbor of neighbors) {
-                    blank = (neighbor.type == itemtype.types().blank);
+                    blank = (neighbor.define.order == module.exports.join.orders.order.nojoin);
                     const geta = self.order == (order ? module.exports.join.orders.order.left : module.exports.join.orders.order.right) ? 1 : 0;
                     // より優先度の高い子を探す
                     if (self.priority > neighbor.priority + geta) {
@@ -4362,7 +3964,7 @@ class contexts {
             
             if (interpretation.order == module.exports.join.orders.order.right) {
                 let next = 0;
-                while (interpretation.order == module.exports.join.orders.order.right) {
+                while (interpretation.order != module.exports.join.orders.order.left) {
                     if (i + next >= context.length) {
                         break;
                     }
@@ -4387,7 +3989,7 @@ class contexts {
             }
             if (interpretation.order == module.exports.join.orders.order.right) {
                 let next = 0;
-                while (interpretation.order == module.exports.join.orders.order.right) {
+                while (interpretation.order != module.exports.join.orders.order.left) {
                     if (i + next >= context.length) {
                         break;
                     }
@@ -4469,7 +4071,7 @@ class contexts {
                     if (roots.length != 1) {
                         return roots.length;
                     }
-                    if (roots[0].type == itemtype.types().blank) {
+                    if (roots[0].define.order == module.exports.join.orders.order.nojoin) {
                         return 0;
                     }
                     return 1;
@@ -4674,8 +4276,21 @@ class ops {
         return result !== undefined;
     }
 
+    ispunctuation(word) {
+        const result = this.punctuations.find(v => {
+            const t = typeof v
+            if (t == 'string') {
+                return v == word;
+            } else if (t == 'function') {
+                return v(word);
+            }
+            return false;
+        });
+        return result !== undefined;
+    }
+
     get puncpriority() {
-        return 1; // 0, 1
+        return 3; // 0, 1, 2
     }
 
     constructor(opdefines, punctuations, puncblanks, hooks, reserved, controls) {
@@ -4690,10 +4305,20 @@ class ops {
         this.puncblanks = puncblanks || [];
         this.punctuations = punctuations || [];
         this._puncs = this.punctuations.concat(this.puncblanks);
+        this.solocontrols = controls.map(v => v.solo);
+        this.leftcontrols = controls.map(v => v.leftone).filter(v => v !== undefined);
+        this.rightcontrols = controls.map(v => v.rightone).filter(v => v !== undefined);
+        this.bothcontrols = controls.map(v => v.bothone).filter(v => v !== undefined);
+        this.rightonly = this.rightcontrols.concat(this._puncs.map(v => this.makepunctuations(0, v, 1)));
+        this.leftonly = this.leftcontrols.concat(this._puncs.map(v => this.makepunctuations(1, v)));
+        this.onlyonecontrols = this.leftonly.concat(this.rightonly);
+
         this.reserved = reserved || []; // [string, sitring, ...]
         //this.opdefines.unshift(); // priority 2
-        this.opdefines.unshift(this.punctuations.map(v => this.makepunctuations(0, v, 1)).concat(this._puncs.map(v => this.makepunctuations(1, v)))); // priority 1
-        this.opdefines.unshift(this._puncs.map(v => this.makepunctuations(1, v, 1))); // priority 0
+        this.opdefines.unshift(this.solocontrols.concat(this.punctuations.map(v => this.makepunctuations(0, v, 0)))); // priority 3
+        this.opdefines.unshift(this.leftonly); // priority 2
+        this.opdefines.unshift(this.rightonly); // priority 1
+        this.opdefines.unshift(this.bothcontrols.concat(this._puncs.map(v => this.makepunctuations(1, v, 1)))); // priority 0
         this.opdefines.push(this.puncblanks.map(v => this.makeblank(v)));
         
         let priority = 0;
@@ -4732,21 +4357,10 @@ class ops {
                     hooks.values(val, arg.type, self, arg);
                 }
                 if (
-                    arg.type == this.types.ret
-                    || arg.type == this.types.esc
-                    || arg.type == this.types.br
+                    arg.meta.stop
                 ) {
-                    meta.type = arg.type;
-                    retValue = val;
-                    ret = true;
-                    break;
-                }
-                meta.type = arg.meta.type;
-                if (
-                    arg.meta.type == this.types.ret
-                    || arg.meta.type == this.types.esc
-                    || arg.meta.type == this.types.br
-                ) {
+                    meta.stop = true;
+                    meta.stopinfo = arg.meta.stopinfo;
                     retValue = val;
                     ret = true;
                     break;
@@ -4788,20 +4402,9 @@ class ops {
     makeblank(word) {
         return new opdefine(
             [word],
-            this.join.order.left,
+            this.join.order.nojoin,
             null,
-            "blank", null, 0,
-            new typeset(
-                [
-                ],
-                [
-                    this.types.blank
-                ],
-                [
-                ],
-                [
-                ],
-            )
+            "space",
         )
     }
 
@@ -5004,6 +4607,7 @@ class calculator {
     get value() {
         const result = this.result.dependency();
         const program = result[0].allnodes;
+
         const punctuations = this.result.punctuations;
         for (let i = 1; i < punctuations.length; i++) {
             const horizonal = punctuations[i] - 1;
@@ -5021,8 +4625,7 @@ class calculator {
         }
         const val = result[0].value;
         if (
-            result[0].type == itemtype.types().ret
-            || result[0].meta.type == itemtype.types().ret
+            result[0].meta.stop && result[0].meta.stopinfo.return
         ) {
             return val.value;
         }
@@ -5102,6 +4705,7 @@ module.exports = {
     console: myconsole,
     config,
     opdefine,
+    ctrldefine,
     typeset,
     property,
     calculator,
