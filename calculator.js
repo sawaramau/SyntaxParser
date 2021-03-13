@@ -8,9 +8,6 @@ class config {
         this.opdefine = (grammer, order, formula, groupid, meta, root = 0, inouts = null) => {
             return new opdefine(grammer, order, formula, groupid, meta, root, inouts);
         }
-        this.typeset = (inputs, outputs, unavailables, delegates) => {
-            return new typeset(inputs, outputs, unavailables, delegates);
-        }
         this.ctrldefine = (grammer, formula, groupid) => {
             return new ctrldefine(grammer, formula, groupid);
         };
@@ -317,12 +314,11 @@ class config {
                                 meta.declare(name, value);
                             }
                         }
-                        if (argv[0] instanceof Array) {
-                            const v = argv[0].value;
-                            v.push(argv[1].value);
-                            return v;
+                        const val = argv[0].value;
+                        if (val instanceof internalArray) {
+                            return val.concat([argv[1].value]);
                         }
-                        return [argv[0].value, argv[1].value];
+                        return new internalArray(val, argv[1].value);
                     },
                     ",",
                 ),
@@ -338,10 +334,13 @@ class config {
                                 meta.declare(name, value);
                             }
                         }
-                        if (argv[0].type == this.types.parallel) {
-                            return argv[0].value;
+                        const val = argv[0].value;
+                        if (val instanceof internalArray) {
+                            return val;
                         }
-                        return [argv[0].value];
+                        const result = new internalArray();
+                        result.push(val);
+                        return result;
                     },
                     ","
                 ),
@@ -403,9 +402,9 @@ class config {
                         const name = argv[0].name;
                         const value = {
                             value: argv[1].value,
-                            type: argv[1].type
+                            //type: argv[1].type
                         };
-                        meta.type = this.types.control;
+                        //meta.type = this.types.control;
                         if (property.include(name)) {
                             property.set(name, value, false);
                         } else {
@@ -638,6 +637,10 @@ class config {
                     [1, "[", "@", 1, "]"],
                     this.join.order.left,
                     (argv, meta) => {
+                        const ref = argv[0].value;
+                        if (ref) {
+
+                        }
                         if (argv[0].type == this.types.object) {
                             const property = argv[0].value;
                             return argv[1].map(v => {
@@ -699,7 +702,6 @@ class config {
                             meta.ref = property.resolve(name);
                             return meta.ref.value;
                         }
-                        console.log(argv[0].value);
                         return argv[0].value[argv[1].value];
                     },
                     "[]"
@@ -761,9 +763,9 @@ class config {
                     ["[", 1, "]"],
                     this.join.order.left,
                     (argv, meta) => {
-                        meta.type = this.types.array;
-                        if (argv[0].type == this.types.parallel) {
-                            return argv[0].value;
+                        const val = argv[0].value;
+                        if (val instanceof internalArray) {
+                            return [].concat(val);
                         }
                         return [argv[0].value];
                     },
@@ -781,7 +783,6 @@ class config {
                     this.join.order.left,
                     (argv, meta) => {
                         argv[0].property = new property();
-                        meta.type = this.types.object;
                         argv[0].value;
                         return argv[0].property
                     },
@@ -795,7 +796,6 @@ class config {
                     ["{", "}"],
                     this.join.order.left,
                     (argv, meta) => {
-                        meta.type = this.types.object;
                         return new property();
                     },
                     "{}"
@@ -804,7 +804,6 @@ class config {
                     ["[", "]"],
                     this.join.order.left,
                     (argv, meta) => {
-                        meta.type = this.types.array;
                         return [];
                     },
                     "[]"
@@ -880,10 +879,6 @@ class config {
                         }
                         if (meta.set) {
                             const setresult = meta.set(name);
-                            if (setresult && setresult.error) {
-                                meta.type = this.types.ret;
-                                return setresult.msg;
-                            }
                         }
                         meta.name = name;
                         meta.ref = property.resolve(name);
@@ -1320,6 +1315,10 @@ class myenum {
     }
 }
 
+// ただの配列を使うと、内部用のものと外部用のものの区別が付かなくなることがあるので、明示的に内部用であることを示したいときはinternalArrayを使う。
+class internalArray extends Array {
+}
+
 // 文字列操作用の自作クラス
 class mystr {
     constructor(str) {
@@ -1433,7 +1432,7 @@ class typeset {
     }
 
     shift(terms = 1) {
-        //return new typeset();
+        return undefined;
         const inputs = this.inputs.map(input => input.slice());
         const unavailables = this.unavailables.slice();
         while (terms) {
@@ -1475,24 +1474,6 @@ class typeset {
                     } else {
                         return this._outputs[i];
                     }
-                    if (this._outputs[i] == this.types.control) {
-                        if (node.value instanceof interpretation) {
-                            return node.meta.type;
-                        } else {
-                            return this.types.control;
-                        }
-                    } else if (this._outputs[i] == this.types.through) {
-                        if (node.args.length) {
-                            return node.args[0].type;
-                        }
-                        return this.types.unsettled;
-                    } else if (this._outputs[i] == this.types.ref) {
-                        if (node.value) {
-                            return node.value.type;
-                        }
-                        return this.types.unsettled;
-                    }
-
                 } else if (this._outputs[i] == this.types.delegate) {
                     dele++;
                 }
@@ -4300,7 +4281,7 @@ class ops {
         //    [opdefine],               high
         // ];
         this.join = module.exports.join.orders;
-        this.types = itemtype.types();
+        //this.types = itemtype.types();
         this.opdefines = opdefines;
         this.puncblanks = puncblanks || [];
         this.punctuations = punctuations || [];
@@ -4366,20 +4347,6 @@ class ops {
                     break;
                 }
             }
-            if (hooks) {
-                if (hooks.punctuation) {
-                    hooks.punctuation(ret, retValue, meta.type, self);
-                }
-                if (meta.type == this.types.ret && hooks.return) {
-                    hooks.return(retValue, meta.type, self);
-                }
-                if (meta.type == this.types.esc && hooks.esc) {
-                    hooks.esc(retValue, meta.type, self);
-                }
-                if (meta.type == this.types.br && hooks.break) {
-                    hooks.break(retValue, meta.type, self);
-                }
-            }
             meta.rootnamespace = namespace;
             meta.retValue = retValue;
             return retValue;
@@ -4415,18 +4382,7 @@ class ops {
             (argv, meta, self) => {
                 return this.punctuation(argv, meta, self);
             },
-            "punctuation", null, 0,
-            new typeset(
-                [
-                ],
-                [
-                    this.types.control
-                ],
-                [
-                ],
-                [
-                ],
-            )
+            "punctuation"
         );
         def.punctuation = this.punctuation;
         return def;
@@ -4703,6 +4659,7 @@ module.exports = {
     join: { orders: new order() },
     // クラス
     console: myconsole,
+    internalArray,
     config,
     opdefine,
     ctrldefine,
