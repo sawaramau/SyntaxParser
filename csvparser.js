@@ -38,8 +38,7 @@ class csvconfig {
         };
 
         this.opdefs = [
-            // values
-            // brackets
+            // value
             [
                 new Calc.opdefine(
                     (val, ptr) => {
@@ -85,18 +84,7 @@ class csvconfig {
                         //console.log(str);
                         return str;
                     },
-                    this.typeword, null, 0,
-                    new Calc.typeset(
-                        [
-                        ],
-                        [
-                            this.typeword
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    this.typeword
                 ),
                 new Calc.opdefine(
                     (val, ptr) => {
@@ -114,39 +102,7 @@ class csvconfig {
                         //console.log(val);
                         return val;
                     },
-                    this.typeword, null, 0,
-                    new Calc.typeset(
-                        [
-                        ],
-                        [
-                            this.typeword
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
-                ),
-            ],
-            [
-                new Calc.opdefine(
-                    ["undefined"],
-                    null,
-                    () => {
-                        return undefined;
-                    },
-                    "undefined", null, 0,
-                    new Calc.typeset(
-                        [
-                        ],
-                        [
-                            this.types.undef
-                        ],
-                        [
-                        ],
-                        [
-                        ],
-                    )
+                    this.typeword
                 ),
             ],
         ];
