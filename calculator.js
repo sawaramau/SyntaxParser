@@ -2372,6 +2372,7 @@ class interpretation {
                 for (let node of nexter.childtrees) {
                     right.push(node);
                 }
+                nexter._tmpparent = this;
                 nexter = nexter.nexter;
             }
             for (let node of this._right) {
@@ -2612,7 +2613,7 @@ class interpretation {
     }
 
     get meta() {
-        if (this._meta === undefined) {
+        if (!this._meta) {
             this._meta = {
                 self: this
             };
@@ -2748,7 +2749,7 @@ class interpretation {
     set parent(val) {
         if (this._parent) {
             // _parent は産みの親なので忘れない
-            return;
+            //return;
         }
         this._tmpparent = val;
     }
@@ -4220,6 +4221,19 @@ class ops {
         return result !== undefined;
     }
 
+    ispuncs(word) {
+        const result = this._puncs.find(v => {
+            const t = typeof v
+            if (t == 'string') {
+                return v == word;
+            } else if (t == 'function') {
+                return v(word);
+            }
+            return false;
+        });
+        return result !== undefined;
+    }
+
     get puncpriority() {
         return 2; // 0, 1, 2
     }
@@ -4334,7 +4348,7 @@ class ops {
             },
             "punctuation"
         );
-        def.punctuation = this.punctuation;
+        //def.punctuation = this.punctuation;
         return def;
     }
 }
@@ -4524,7 +4538,9 @@ class calculator {
             if (horizonal == result[0].horizonal) {
                 break;
             }
-            program[horizonal].value;
+            if (this.config.ops.ispuncs(program[horizonal].first)) {
+                //program[horizonal].value;
+            }
         }
         if (result.length != 1) {
             myconsole.implmenterror('Cannot complete parse tree.', result.length);
@@ -4553,6 +4569,11 @@ class calculator {
             console.log(msg);
         }
         console.log(messages.join(','));
+    }
+
+    get trees() {
+        this._trees = this.result.dependency();
+        return this._trees;
     }
 
     get root() {
