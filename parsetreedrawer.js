@@ -147,43 +147,7 @@ class drawer {
                 .attr('fill-opacity', 0)
                 .attr('stroke-width', 4)
                 .attr('stroke', 'black')
-                //.attr('datum',d => [{horizonal:d.horizonal, depth:d.meta.depth()}, {horizonal:d.meta.phorizonal, depth:d.meta.pdepth}])
-                //.attr('d', d => line(d)([[0, 0], [2, 0], [2, 2]]))
                 .attr('d', d => line(d)([[d.meta.phorizonal, d.meta.pdepth, 0, 0], [d.meta.phorizonal, d.meta.pdepth, - d.meta.porder * edger, edger], [d.horizonal, d.meta.pdepth, d.meta.porder * edger, edger], [d.horizonal, d.meta.pdepth, 0, edger * 2], [d.horizonal, d.meta.depth(), 0, 0]]))
-            return;
-            this.edges.append('line')
-                .attr('x1', d => { // 親側
-                    if (d.horizonal < d.meta.phorizonal) {
-                        return '100%'
-                    }
-                    return '0%'
-                })
-                .attr('x2', d => { // 子側
-                    if (d.horizonal < d.meta.phorizonal) {
-                        return '0%'
-                    }
-                    return '100%'
-                })
-                .attr('y1', d => { // 親側
-                    if (d.meta.depth() < d.meta.pdepth) {
-                        return '100%'
-                    }
-                    return '0%'
-                })
-                .attr('y2', d => { // 子側
-                    if (d.meta.depth() <= d.meta.pdepth) {
-                        return '0%'
-                    }
-                    return '100%'
-                })
-                .attr('stroke-width', 4)
-                .attr('stroke-dasharray', d => {
-                    if (d.define.order == -1) {
-                        return 4;
-                    }
-                    return 0;
-                })
-                .attr('stroke', 'black');
         };
         const drawop = () => {
             this.operators = this.svg.selectAll('body').data(this.src).enter()
@@ -209,7 +173,7 @@ class drawer {
                             return '#ff7777';
                         }
                     } else if (d.priority < 3) {
-                        return '#ffee77';
+                        return '#ff4444';
                     } else if (d.nexter) {
                         return '#7777ff'
                     }
@@ -233,8 +197,6 @@ class drawer {
         drawbracket();
         drawop();
         drawedge();
-        //this.svg.append(this.g);
-        //this.svg.attr('width', 1000);
     }
     output(path = 'output.svg') {
         const data = this.d3.svgString();
