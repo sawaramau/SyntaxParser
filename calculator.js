@@ -1580,6 +1580,9 @@ class ctrldefine {
         return args.map(o => {
             return Object.defineProperty(o, 'value', {
                 get: function () {
+                    if (o.meta.executedflag) {
+                        o.parent.meta.rootnamespace = o.meta.rootnamespace;
+                    }
                     if (o.parent.meta.rootnamespace) {
                         o.rootnamespace = o.parent.meta.rootnamespace;
                     } else {
@@ -2122,7 +2125,6 @@ class interpretation {
     get brothers() {
         return this._brothers;
     }
-
 
     get offset() {
         return this._offset;
@@ -4274,7 +4276,6 @@ class ops {
             meta.executedflag = true;
             let namespace = meta.rootnamespace;
             let retValue = undefined;
-            let ret = false;
             const argv = args.map(o => {
                 return Object.defineProperty(o, 'value', {
                     get: function () {
@@ -4295,6 +4296,7 @@ class ops {
             });
             if (hooks && hooks.alternative) {
                 meta.retValue = hooks.alternative(argv, meta, self);
+                meta.rootnamespace = namespace;
                 return meta.retValue;
             }
             for (let arg of argv) {
@@ -4538,9 +4540,9 @@ class calculator {
             if (horizonal == result[0].horizonal) {
                 break;
             }
-            if (this.config.ops.ispuncs(program[horizonal].first)) {
-                //program[horizonal].value;
-            }
+            //if (this.config.ops.ispuncs(program[horizonal].first)) {
+            program[horizonal].value;
+            //}
         }
         if (result.length != 1) {
             myconsole.implmenterror('Cannot complete parse tree.', result.length);

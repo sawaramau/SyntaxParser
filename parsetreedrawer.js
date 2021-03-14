@@ -139,6 +139,9 @@ class drawer {
                 .attr('class', 'edge');
             this.edges.append('path')
                 .attr('stroke-dasharray', d => {
+                    if (d.define.order == -1) {
+                        return '10 30';
+                    }
                     return 0;
                 })
                 .attr('fill-opacity', 0)
