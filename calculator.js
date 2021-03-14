@@ -1,3 +1,4 @@
+'use strict';
 const performance = require('perf_hooks').performance;
 
 // 演算子の定義など、解析器が必要とする基礎情報をまとめて保持するクラス
@@ -666,7 +667,6 @@ class config {
                         argv[1].value;
                         const key = argv[1].name;
                         const arr = argv[0].value;
-                        //console.log(arr);
                         return arr.map(v => v.value[key]);
                     },
                     "{@}"
@@ -3577,7 +3577,7 @@ class contexts {
             }
             return false;
         });
-
+        
         if (first) {
             // 結合可能な要素があるので、ツリーを再構成
             const replace = this.program[first.horizonal][first.vertical];
@@ -3604,7 +3604,7 @@ class contexts {
                 }
                 const interpretation = interpretations.find(def => def.horizonal == op.horizonal);
                 if (interpretations.length && !interpretation) {
-                    myconsole.implmenterror("Error!!", op.fullgrammer, op.define.first, op.horizonal, itemtype.string(op.type));
+                    myconsole.implmenterror("Error!!", op.fullgrammer, op.define.first, op.horizonal);
                     myconsole.implmenterror(interpretations.map(v => v.horizonal));
                 }
                 
@@ -3641,7 +3641,6 @@ class contexts {
         // rootsを一本のプログラムに変換
         let replace = replacefirst;
         let c = 0;
-
         // interpretations: 解析木の根の集合と再解釈予定の演算子から再構築したプログラム
         // この構成で解釈は可能だが、解析木の数は最小ではない
         const interpretations = roots.reduce((acc, root) => {
@@ -3687,6 +3686,7 @@ class contexts {
         const program = this.extraction(this.program, start, end);
 
         this.squash(program, start, interpretations);
+
         const contexts = this.reorder(program);
         const completes = Array(program.length);
         completes.fill(false);
@@ -3766,22 +3766,6 @@ class contexts {
         }
         const program = this.mintrees(start, end);
         const trees = this.retree(program);
-        /*
-        // エラー検知用のためだけのコードだったけれども、
-        const nodes = trees.reduce((acc, cur) => {
-            for (let node of cur.allnodes) {
-                acc.push(node);
-            }
-            return acc;
-        }, []);
-        nodes.map((v, idx, self) => {
-            const n = self.slice(idx + 1).find(n => v.horizonal == n.horizonal);
-            if (n) {
-                myconsole.implmenterror("Duplication interpretation", v.horizonal, n.horizonal, itemtype.string(v.type), itemtype.string(n.type));
-                myconsole.implmenterror(n.parent.horizonal, v.parent.horizonal, itemtype.string(v.parent.type), itemtype.string(n.parent.type));
-            }
-        });
-        */
         return trees;
     }
 
@@ -4258,7 +4242,8 @@ class ops {
         this.bothcontrols = controls.map(v => v.bothone).filter(v => v !== undefined);
         this.rightonly = this.rightcontrols.concat(this._puncs.map(v => this.makepunctuations(0, v, 1)));
         this.leftonly = this.leftcontrols.concat(this._puncs.map(v => this.makepunctuations(1, v)));
-        this.onlyonecontrols = this.leftonly.concat(this.rightonly);
+        //this.onlyonecontrols = this.rightonly.concat(this.leftonly); // この順序でないと上手くできない構文もあれば、
+        this.onlyonecontrols = this.leftonly.concat(this.rightonly); // この順序でないと上手くできない構文もある。
 
         this.reserved = reserved || []; // [string, sitring, ...]
         this.opdefines.unshift(this.solocontrols.concat(this.punctuations.map(v => this.makepunctuations(0, v, 0)))); // priority 2
