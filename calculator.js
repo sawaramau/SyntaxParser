@@ -3464,6 +3464,7 @@ class contexts {
             // ツリー間の処理の優先度を決定する
             for (let interpretations of tree) {
                 for (let interpretation of interpretations) {
+                    
                     if (interpretation) {
                         acc.push(interpretation);
                     }
@@ -3471,25 +3472,28 @@ class contexts {
             }
             return acc;
         }, []).sort((l, r) => {
+            // 基本的には優先度の高いものから順に考慮
             const priority = r.priority - l.priority;
             if (priority) {
                 return priority;
             }
-            const root = l.root.horizonal - r.root.horizonal;
-            if (!root) {
-                // 同じ木
+
+            // 位置も結合方向も同じならば、子供の数の多い方？
+            if (l.horizonal == r.horizonal) {
+                if (l.order == r.order) {
+                    if (l.order == module.exports.join.orders.order.left) {
+                        return l.right - r.right;
+                    } else if (l.order == module.exports.join.orders.order.right) {
+                        return l.left - r.left;
+                    }
+                } 
+            }
+            // よく分かんない。一方が左結合ならば右から、一方が右結合ならば左から検討すべきってこと？
+            if (l.order == module.exports.join.orders.order.left) {
+                return r.horizonal - l.horizonal;
+            } else {
                 return l.horizonal - r.horizonal;
             }
-            if (l.order == r.order) {
-                if (l.order == this.config.join.order.right) {
-                    return 1;
-                } else {
-                    return -1;
-                }
-            } else {
-                return root;
-            }
-            return l.horizonal - r.horizonal;
         });
         
         const first = reordered.find((interpretation) => {
@@ -4242,8 +4246,9 @@ class ops {
         this.bothcontrols = controls.map(v => v.bothone).filter(v => v !== undefined);
         this.rightonly = this.rightcontrols.concat(this._puncs.map(v => this.makepunctuations(0, v, 1)));
         this.leftonly = this.leftcontrols.concat(this._puncs.map(v => this.makepunctuations(1, v)));
-        //this.onlyonecontrols = this.rightonly.concat(this.leftonly); // この順序でないと上手くできない構文もあれば、
-        this.onlyonecontrols = this.leftonly.concat(this.rightonly); // この順序でないと上手くできない構文もある。
+        //this.onlyonecontrols = this.rightonly.concat(this.leftonly); // この順序では出来なくなった。
+        this.onlyonecontrols = this.leftonly.concat(this.rightonly); // この順序でないとダメ。
+        // なんでかはよく分かんない。
 
         this.reserved = reserved || []; // [string, sitring, ...]
         this.opdefines.unshift(this.solocontrols.concat(this.punctuations.map(v => this.makepunctuations(0, v, 0)))); // priority 2
