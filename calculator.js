@@ -12,7 +12,7 @@ class config {
         this.ctrldefine = (grammer, formula, groupid) => {
             return new ctrldefine(grammer, formula, groupid);
         };
-        this.reserved = reserved || ['false', 'true', 'undefined', 'return'];
+        this.reserved = reserved || ['false', 'true', 'undefined', 'return', 'var'];
 
         this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
         this.punctuations = punctuations || [';']; // 文末として解釈される文字群
@@ -113,14 +113,6 @@ class config {
                 },
                 "if"
             ),
-            this.ctrldefine(
-                ["log", "(", 1, ")"],
-                (argv, meta) => {
-                    console.log(argv[0].value);
-                    return undefined;
-                },
-                "log"
-            ),
 
             this.ctrldefine(
                 ["for", "(", 1, ")", "{", 1, "}"],
@@ -169,6 +161,17 @@ class config {
         // リテラルもここで定義する。詳しくはdecやstringの要素を確認
         // 読み込みは『演算子として解釈可能な最長の単語』単位で行われる
         this.opdefs = opdefs || [
+            [
+                this.opdefine(
+                    ["log", "(", 1, ")"],
+                    this.join.order.left,
+                    (argv, meta) => {
+                        console.log(argv[0].value);
+                        return undefined;
+                    },
+                    "log"
+                ),
+            ],
             // priority order
             // next priority group
             // 宣言
@@ -809,6 +812,34 @@ class config {
             ],
 
             // リテラルとか予約語とか
+            [
+                this.opdefine(
+                    [1, (val, ptr) => {
+                        const varreg = /^[a-zA-Z_][\w]*$/;
+                        return val.match(varreg);
+                    }],
+                    this.join.order.left,
+                    (argv, meta, self) => {
+                        const val = argv[0].value;
+
+                        const property = meta.property || self.rootnamespace;
+                        const name = argv[0].meta.name + ' ' + self.operator; //val;
+                        if (meta.declare) {
+                            meta.declare(name);
+                        }
+                        if (meta.set) {
+                            const setresult = meta.set(name);
+                        }
+                        meta.name = name;
+                        meta.ref = property.resolve(name);
+                        if (meta.ref) {
+                            return meta.ref.value;
+                        }
+                        return undefined;
+                    },
+                    "variable"
+                ),
+            ],
             [
                 this.opdefine(
                     ["undefined"],
