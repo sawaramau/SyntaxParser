@@ -1593,48 +1593,24 @@ class ctrldefine {
     get formula () {
         return this._formula;
     }
-    argv(args) {
-        return args.map(o => {
-            return Object.defineProperty(o, 'value', {
-                get: function () {
-                    if (o.meta.executedflag) {
-                        o.parent.meta.rootnamespace = o.meta.rootnamespace;
-                    }
-                    if (o.parent.meta.rootnamespace) {
-                        o.rootnamespace = o.parent.meta.rootnamespace;
-                    } else {
-                        o.rootnamespace = new property();
-                    }
-                    const val = o._value;
-                    o.parent.meta.rootnamespace = o.meta.rootnamespace;
-                    return val;
-                },
-                configurable: true
-            });
-        });
-    }
+
     set formula (val) {
         this._formula = val;
     }
     addformula(left, right) {
         return (args, meta, self) => {
-            if (meta.executedflag) {
-                return meta.retValue;
-            }
-            const argv = this.argv(args);
+            const argv = args;
             if (left) {
                 const val1 = argv[0].value;
                 if (argv[0].meta.stop) {
                     meta.stop = true;
                     meta.stopinfo = argv[0].meta.stopinfo;
-                    meta.executedflag = true;
                     meta.retValue = val1;
                     return val1;
                 }
             }
             const val2 = this.formula(argv.slice(left), meta, self);
             if (meta.stop) {
-                meta.executedflag = true;
                 meta.retValue = val2;
                 return val2;
             }
@@ -1644,12 +1620,10 @@ class ctrldefine {
                 if (argv[argv.length - 1].meta.stop) {
                     meta.stop = true;
                     meta.stopinfo = argv[argv.length - 1].meta.stopinfo;
-                    meta.executedflag = true;
                     meta.retValue = val3;
                     return val3;
                 }
             }
-            meta.executedflag = true;
             meta.retValue = val2;
             return val2;
         }
@@ -2671,16 +2645,23 @@ class interpretation {
         if (this._executed) {
             return this._oldvalue;
         }
-        const leftfirst = this.args.find(arg => {
-            arg.horizonla < this.horizonal;
-        });
-        if (leftfirst) {
-            Object.defineProperty(leftfirst, 'value', {
+        const first = (() => {
+            const args = this.args;
+            if(args.length == 0) {
+                return undefined;
+            } else if (args[0].horizonal < this.horizonal) {
+                return args[0];
+            }
+            return undefined;
+        })()
+        if (first) {
+            Object.defineProperty(first, 'value', {
                 get: function () {
-                    return leftfirst._oldvalue;
+                    return first._oldvalue;
                 },
                 configurable: true
             });
+            this.meta.rootnamespace = first.meta.rootnamespace;
         }
         return this._value;
     }
@@ -3789,6 +3770,7 @@ class contexts {
 
     // 依存解決
     dependency(start, end) {
+        const isall = (start === undefined) && (end === undefined);
         if (!start) {
             start = 0;
         }
@@ -3804,6 +3786,9 @@ class contexts {
         }
         const program = this.mintrees(start, end);
         const trees = this.retree(program);
+        if (isall) {
+            this._program = trees.reduce((acc, tree) => acc.concat(tree.allnodes.map(v => [v])), []);
+        }
         return trees;
     }
 
@@ -4294,41 +4279,18 @@ class ops {
         
         let priority = 0;
         this.punctuation = (args, meta, self) => {
-            if (meta.executedflag) {
-                return meta.retValue;
-            }
             meta.executedflag = true;
-            let namespace = meta.rootnamespace;
+            //let namespace = meta.rootnamespace;
             let retValue = undefined;
-            const argv = args.map(o => {
-                return Object.defineProperty(o, 'value', {
-                    get: function () {
-                        if (o.meta.executedflag) {
-                            namespace = o.meta.rootnamespace;
-                        }
-                        if (namespace) {
-                            o.rootnamespace = namespace;
-                        } else {
-                            o.rootnamespace = new property();
-                        }
-                        const val = o._value;
-                        namespace = o.meta.rootnamespace;
-                        return val;
-                    },
-                    configurable: true
-                });
-            });
+            const argv = args;
             if (hooks && hooks.alternative) {
                 meta.retValue = hooks.alternative(argv, meta, self);
-                meta.rootnamespace = namespace;
+                //meta.rootnamespace = namespace;
                 return meta.retValue;
             }
             for (let arg of argv) {
                 const val = arg.value;
                 retValue = val;
-                if (hooks && hooks.values) {
-                    hooks.values(val, arg.type, self, arg);
-                }
                 if (
                     arg.meta.stop
                 ) {
@@ -4337,7 +4299,7 @@ class ops {
                     break;
                 }
             }
-            meta.rootnamespace = namespace;
+            //meta.rootnamespace = namespace;
             meta.retValue = retValue;
             return retValue;
         };
@@ -4557,13 +4519,21 @@ class calculator {
     get value() {
         const result = this.result.dependency();
         const program = result[0].allnodes;
-
-        for (let i = 0; i < program.length; i++) {
-            const horizonal = program[i] - 1;
+        program.map(v => v._executed = false);
+        const start = program[0].horizonal;
+        let index = 0;
+        program[0].rootnamespace = this.namespace;
+        while (index < program.length) {
+            const horizonal = program[index].horizonal;
             if (horizonal == result[0].horizonal) {
                 break;
             }
-            program[i].val;
+            program[index].val;
+            if (program[index].parent) {
+                index = Math.max(index + 1, program[index].parent.horizonal - start);
+            } else {
+                index++;
+            }
         }
         if (result.length != 1) {
             myconsole.implmenterror('Cannot complete parse tree.', result.length);
@@ -4572,13 +4542,13 @@ class calculator {
                 v.printtree()
             });
         }
-        const val = result[0].value;
+        const val = result[0].val;
         if (
             result[0].meta.stop && result[0].meta.stopinfo.return
         ) {
             return val.value;
         }
-        return new interpretation().value;
+        return new interpretation().value; // default value
     }
 
     memorylog(msg) {
@@ -4602,19 +4572,6 @@ class calculator {
     get root() {
         this.memorylog('before dependency');
         const result = this.result.dependency();
-        console.log(this.result.program.length, this.result.program.map(v => v.length).reduce((acc, v) => acc + v, 0));
-        this.memorylog('after dependency');
-        const program = result[0].allnodes;
-        const punctuations = this.result.punctuations;
-        console.log('punctuation execution start', punctuations.length, punctuations);
-        for (let i = 1; i < punctuations.length; i++) {
-            const horizonal = punctuations[i] - 1;
-            if (horizonal == result[0].horizonal) {
-                break;
-            }
-            program[horizonal].value;
-        }
-        console.log('punctuations executed complete');
         if (result.length != 1) {
             myconsole.implmenterror('Cannot complete parse tree.', result.length);
             result.map((v, i) => {
@@ -4622,7 +4579,26 @@ class calculator {
                 v.printtree()
             });
         }
-        const val = result[0].value;
+        const program = result[0].allnodes;
+        console.log(this.result.program.length, this.result.program.map(v => v.length).reduce((acc, v) => acc + v, 0));
+        this.memorylog('after dependency');
+        program.map(v => v._executed = false);
+        const start = program[0].horizonal;
+        let index = 0;
+        program[0].rootnamespace = this.namespace;
+        while (index < program.length) {
+            const horizonal = program[index].horizonal;
+            if (horizonal == result[0].horizonal) {
+                break;
+            }
+            program[index].val;
+            if (program[index].parent) {
+                index = Math.max(index + 1, program[index].parent.horizonal - start);
+            } else {
+                index++;
+            }
+        }
+        const val = result[0].val;
         this.memorylog('after value');
         return val;
     }
