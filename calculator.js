@@ -357,27 +357,19 @@ class config {
                     (argv, meta, self) => {
                         argv[1].meta.deftypename = meta.deftypename;
                         const val = argv[1].value;
-                        const t = argv[1].type;
                         const value = {
                             value: val,
-                            type: t,
                             typename: argv[1].typename
                         };
                         if (meta.declare) {
                             argv[0].meta.declare = (name) => {
                                 meta.declare(name, value);
                             }
-                        } else {
-                            argv[0].meta.set = (name) => {
-                                if (argv[0].property) {
-                                    argv[0].property.set(name, value);
-                                } else {
-                                    self.rootnamespace.set(name, value);
-                                }
-                            };
-                        }
-
-                        return argv[0].value;
+                        } 
+                        const ret = argv[0].value;
+                        const name = argv[0].name;
+                        self.rootnamespace.set(name, value);
+                        return ret;
                     },
                     "{}"
                 ),
@@ -827,9 +819,6 @@ class config {
                         if (meta.declare) {
                             meta.declare(name);
                         }
-                        if (meta.set) {
-                            const setresult = meta.set(name);
-                        }
                         meta.name = name;
                         meta.ref = property.resolve(name);
                         if (meta.ref) {
@@ -902,12 +891,9 @@ class config {
                     (val, meta, self) => {
 
                         const property = meta.property || self.rootnamespace;
-                        const name = self.operator; //val;
+                        const name = self.operator;
                         if (meta.declare) {
                             meta.declare(name);
-                        }
-                        if (meta.set) {
-                            const setresult = meta.set(name);
                         }
                         meta.name = name;
                         meta.ref = property.resolve(name);
@@ -2117,7 +2103,7 @@ class interpretation {
         } else if (this.parent) {
             return this.parent.childnamespace;
         }
-        return undefined;
+        return new property();
     }
 
     set rootnamespace(val) {
@@ -2678,17 +2664,34 @@ class interpretation {
         if (val == !this._confirm) {
             this.args.map(v => v.confirm = val);
         }
-        if (this.confirm == false && val == true) {
-            //this.value;
-        }
         this._confirm = val;
+    }
+
+    get val() {
+        if (this._executed) {
+            return this._oldvalue;
+        }
+        const leftfirst = this.args.find(arg => {
+            arg.horizonla < this.horizonal;
+        });
+        if (leftfirst) {
+            Object.defineProperty(leftfirst, 'value', {
+                get: function () {
+                    return leftfirst._oldvalue;
+                },
+                configurable: true
+            });
+        }
+        return this._value;
     }
 
     get _value() {
         this.args.map(arg => {
             arg.parent = this;
         });
-        return this.define.formula(this.args, this.meta, this);
+        this._executed = true;
+        this._oldvalue = this.define.formula(this.args, this.meta, this);
+        return this._oldvalue;
     }
 
     get value() {
@@ -4555,15 +4558,12 @@ class calculator {
         const result = this.result.dependency();
         const program = result[0].allnodes;
 
-        const punctuations = this.result.punctuations;
-        for (let i = 1; i < punctuations.length; i++) {
-            const horizonal = punctuations[i] - 1;
+        for (let i = 0; i < program.length; i++) {
+            const horizonal = program[i] - 1;
             if (horizonal == result[0].horizonal) {
                 break;
             }
-            //if (this.config.ops.ispuncs(program[horizonal].first)) {
-            program[horizonal].value;
-            //}
+            program[i].val;
         }
         if (result.length != 1) {
             myconsole.implmenterror('Cannot complete parse tree.', result.length);
