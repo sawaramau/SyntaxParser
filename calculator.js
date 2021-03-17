@@ -12,7 +12,7 @@ class config {
         this.ctrldefine = (grammer, formula, groupid) => {
             return new ctrldefine(grammer, formula, groupid);
         };
-        this.reserved = reserved || ['false', 'true', 'undefined', 'return', 'var'];
+        this.reserved = reserved || ['false', 'true', 'undefined', 'return', 'var', 'break'];
 
         this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
         this.punctuations = punctuations || [';']; // 文末として解釈される文字群
@@ -136,12 +136,13 @@ class config {
                 ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
                 (argv, meta) => {
                     for (argv[0].value; argv[1].value; argv[2].value) {
-                        const r = argv[3].value;
+                        const val = argv[3].value;
                         if (argv[3].meta.stop) {
-                            if (argv[3].meta.stopinfo.return) {
-                                return r;
+                            if (!argv[3].meta.stopinfo.break) {
+                                meta.stop = argv[3].meta.stop;
+                                meta.stopinfo = argv[3].meta.stopinfo;
                             }
-                            return undefined;
+                            return val;
                         }
                     }
                     return undefined;
@@ -1855,6 +1856,7 @@ class opdefine {
             return this.formula(argv, meta, self);
         }, this.groupid, this.meta, this.root, this._inouts);
         def.priority = this.priority;
+        def.punctuation = this.punctuation;
         return def;
     }
 
@@ -1867,15 +1869,17 @@ class opdefine {
             const def = new opdefine([keyword], this.order, (argv, meta, self) => {
                 self.operator = keyword;
                 return this.formula(keyword, meta, self);
-            }, this.groupid, this.meta, this.root, this._inouts);
+            }, this.groupid, this.meta, this.root);
             def.priority = this.priority;
+            def.punctuation = this.punctuation;
             const int = new interpretation(def);
             return int;
         } else {
             const def = new opdefine([keyword], this.order, () => {
                 return undefined;
-            }, this.groupid, this.meta, this.root, this._inouts);
+            }, this.groupid, this.meta, this.root);
             def.priority = this.priority;
+            def.punctuation = this.punctuation;
             const int = new interpretation(def);
             return int;
         }
@@ -3245,9 +3249,9 @@ class contexts {
         const confirmed = (node) => {
             // horizonal == end - 1 は現状の末尾であるが、後続によって解釈が変わるので必ず確定できない。
             if (!(node.horizonal == end - 1)) {
-                // punkblankを含む制御構文が確定的に文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
+                // 制御構文または文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
                 // * 再検討されると、自身の左手側が存在しないパターンが発生する
-                if (node.priority <= this.config.ops.puncpriority) {
+                if (node.priority <= this.config.ops.ctrlpriority) {
                     this.brackets.prevpunc = node.horizonal + 1;
                 }
                 this.confirmbody(node);
@@ -3301,20 +3305,18 @@ class contexts {
             return l.priority - r.priority;
         });
         
-        let maxpriority = 0;
+        let ispunc = true;
         context.map((interpretation, index) => {
             interpretation.horizonal = this.program.length;
             interpretation.vertical = index;
             interpretation.context = context;
-            if (interpretation.priority > maxpriority) {
-                maxpriority = interpretation.priority;
-            }
+            ispunc = interpretation.define.punctuation && ispunc;
         });
         if (context.length == 0) {
             return;
         }
         this.program.push(context);
-        if (maxpriority <= this.config.ops.puncpriority && this.config.ops.ispunctuation(keyword)) {
+        if (ispunc) {
             this.brackets.prevpunc = this.program.length;
             if (this.brackets.prevend > 0) {
                 const end = this.brackets.prevend;
@@ -3484,6 +3486,7 @@ class contexts {
                     const grammer = [other.define.left - def.define.left, def.first, other.define.right - def.define.right];
                     const op = new opdefine(grammer, other.order, undefined, "tree", null, 0, def.typeset);
                     op.priority = other.priority;
+                    op.punctuation = other.punctuation;
                     const int = op.make(undefined);
                     int.previnterpretation = def;
                     int.vertical = other.vertical;
@@ -4265,7 +4268,7 @@ class ops {
         return result !== undefined;
     }
 
-    get puncpriority() {
+    get ctrlpriority() {
         return 2; // 0, 1, 2
     }
 
@@ -4358,7 +4361,7 @@ class ops {
             },
             "punctuation"
         );
-        //def.punctuation = this.punctuation;
+        def.punctuation = true;
         return def;
     }
 }
