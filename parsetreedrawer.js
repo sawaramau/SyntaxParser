@@ -8,45 +8,45 @@ class drawer {
         const d3 = this.d3.d3;
         this.yoffset = 100;
         this.xoffset = 100;
-        this.r = 30;
+        this.r = 40;
         this.margin = 60;
         this.dmargin = 150;
         this.edger = 30;
-
         this.trees = calculator.trees;
-        this.src = calculator.trees.map(v => v.allnodes).reduce((acc, v) => { return acc.concat(v)}, []);
-        this.maxdepth = 0;
+        this.src = this.trees.map(v => v.allnodes).reduce((acc, v) => { return acc.concat(v) }, []);
         this.maxwidth = this.src.length + 2;
-        this.src.map(n => n.args.map(arg => {
-            if (n._parent) {
-                return;
+        this.maxdepth = 0;
+
+        const setdepth = (node, depth = 0, parent = undefined) => {
+            if (this.maxdepth < depth) {
+                this.maxdepth = depth;
             }
-            arg.parent = n;
-        }));
-        this.src.map(n => {
-            n.meta.phorizonal = n._tmpparent ? n.parent.horizonal : n.horizonal;
-            n.meta.porder = (n.horizonal < n.meta.phorizonal ? 1: -1);
-            n.meta.depth = () => {
-                if (n.meta._depth === undefined) {
-                    if (n._tmpparent) {
-                        n.meta.pdepth = n._tmpparent.meta.depth(); 
-                        if (n._parent) {
-                            n.meta._depth = n.meta.pdepth;
-                        } else {
-                            n.meta._depth = 1 + n.meta.pdepth;
-                        }
-                        if (this.maxdepth < n.meta._depth ) {
-                            this.maxdepth = n.meta._depth;
-                        }
-                    } else {
-                        n.meta.pdepth = 0; 
-                        n.meta._depth = 0;
-                    }
-                }
-                return n.meta._depth;
-            };
+            if (parent) {
+                node.meta.phorizonal = parent.horizonal;
+                node.meta.porder = node.horizonal < parent.horizonal ? 1 : -1;
+            }
+            if (node.starter == node) {
+                node.meta.pdepth = depth - 1;
+            } else {
+                node.meta.pdepth = depth;
+            }
+            node.meta.depth = depth;
+            node._tmpparent = parent;
+            node.allchildren.map(v =>
+            {
+                setdepth(v, depth + 1, node)
+            });
+            node.allchildtrees.map(v => {
+                setdepth(v, depth + 1, node)
+            });
+            if (node.nexter) {
+                setdepth(node.nexter, depth, node)
+            }
+        }
+
+        this.trees.map(tree => {
+            setdepth(tree, 0);
         });
-        this.src.map(n => n.meta.depth());
 
         const yoffset   = this.yoffset;
         const xoffset   = this.xoffset;
@@ -73,7 +73,7 @@ class drawer {
                 .attr('width', d => (d.horizonal - d.starter.horizonal) * (r * 2 + margin))
                 .attr('x', d => d.starter.horizonal * (r * 2 + margin) + xoffset + r)
                 .attr('height', '100%')
-                .attr('y', d => d.meta.depth() * (r * 2 + dmargin) + yoffset + r * 2);
+                .attr('y', d => d.meta.depth * (r * 2 + dmargin) + yoffset + r);
             this.bracket.append('line')
                 .attr('x1', 0)
                 .attr('x2', '100%')
@@ -105,8 +105,8 @@ class drawer {
 
                 const hmin = Math.min(d.horizonal, d.meta.phorizonal);
                 const hmax = Math.max(d.horizonal, d.meta.phorizonal);
-                const dmin = Math.min(d.meta.depth(), d.meta.pdepth);
-                const dmax = Math.max(d.meta.depth(), d.meta.pdepth);
+                const dmin = Math.min(d.meta.depth, d.meta.pdepth);
+                const dmax = Math.max(d.meta.depth, d.meta.pdepth);
                 const xmin = (2 * r + margin) * hmin;
                 const xmax = (2 * r + margin) * hmax;
                 const ymin = (2 * r + dmargin) * dmin
@@ -134,8 +134,8 @@ class drawer {
                 .append('svg')
                 .attr('width', d => (2 * r + margin) * Math.abs(d.horizonal - d.meta.phorizonal))
                 .attr('x',     d => Math.min(d.horizonal, d.meta.phorizonal) * (r * 2 + margin) + xoffset + r)
-                .attr('height', d => ((2 * r + dmargin) * (Math.abs(d.meta.depth() - d.meta.pdepth)) - 2 * r))
-                .attr('y',      d => Math.min(d.meta.depth() - 1 / 2, d.meta.pdepth + 1 / 2) * (r * 2 + dmargin) + yoffset - dmargin / 2 + r)
+                .attr('height', d => ((2 * r + dmargin) * (Math.abs(d.meta.depth - d.meta.pdepth)) - 2 * r))
+                .attr('y',      d => Math.min(d.meta.depth - 1 / 2, d.meta.pdepth + 1 / 2) * (r * 2 + dmargin) + yoffset - dmargin / 2 + r)
                 .attr('class', 'edge');
             this.edges.append('path')
                 .attr('stroke-dasharray', d => {
@@ -147,7 +147,7 @@ class drawer {
                 .attr('fill-opacity', 0)
                 .attr('stroke-width', 4)
                 .attr('stroke', 'black')
-                .attr('d', d => line(d)([[d.meta.phorizonal, d.meta.pdepth, 0, 0], [d.meta.phorizonal, d.meta.pdepth, - d.meta.porder * edger, edger], [d.horizonal, d.meta.pdepth, d.meta.porder * edger, edger], [d.horizonal, d.meta.pdepth, 0, edger * 2], [d.horizonal, d.meta.depth(), 0, 0]]))
+                .attr('d', d => line(d)([[d.meta.phorizonal, d.meta.pdepth, 0, 0], [d.meta.phorizonal, d.meta.pdepth, - d.meta.porder * edger, edger], [d.horizonal, d.meta.pdepth, d.meta.porder * edger, edger], [d.horizonal, d.meta.pdepth, 0, edger * 2], [d.horizonal, d.meta.depth, 0, 0]]))
         };
         const drawop = () => {
             this.operators = this.svg.selectAll('body').data(this.src).enter()
@@ -156,7 +156,7 @@ class drawer {
                 .attr('width', 2 * r)
                 .attr('height', 2 * r)
                 .attr('x', d => d.horizonal * (r * 2 + margin) + xoffset)
-                .attr('y', d => d.meta.depth() * (r * 2 + dmargin) + yoffset)
+                .attr('y', d => d.meta.depth * (r * 2 + dmargin) + yoffset)
                 .attr('class', 'operator')
                 .attr('width', 2 * r);
             this.operators.append('circle')
