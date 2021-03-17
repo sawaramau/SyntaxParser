@@ -51,11 +51,11 @@ class config {
             this.ctrldefine(
                 ["if", "(", 1, ")", "{", 1, "}"],
                 (argv, meta) => {
-                    meta.type = this.types.control;
                     if (argv[0].value) {
                         meta.success = true;
                         const val = argv[1].value;
-                        meta.type = argv[1].meta.type;
+                        meta.stop = argv[1].meta.stop;
+                        meta.stopinfo = argv[1].meta.stopinfo;
                         return val;
                     }
                     meta.success = false;
@@ -117,20 +117,16 @@ class config {
             this.ctrldefine(
                 ["for", "(", 1, ")", "{", 1, "}"],
                 (argv, meta) => {
-                    argv[1].printtree();
                     for (let i = 0; i < argv[0].value; i++) {
                         const val = argv[1].value;
-                        meta.type = argv[1].meta.type;
-                        if (meta.type == this.types.br) {
-                            meta.type = this.types.control;
-                            return val;
-                        } else if (meta.type == this.types.ret) {
-                            return val;
-                        } else if (meta.type == this.types.esc) {
+                        if (argv[1].meta.stop) {
+                            if (!argv[1].meta.stopinfo.break) {
+                                meta.stop = argv[1].meta.stop;
+                                meta.stopinfo = argv[1].meta.stopinfo;
+                            }
                             return val;
                         }
                     }
-                    meta.type = this.types.control;
                     return undefined;
                 },
                 "for"
@@ -139,14 +135,13 @@ class config {
             this.ctrldefine(
                 ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
                 (argv, meta) => {
-                    meta.type = this.types.control;
                     for (argv[0].value; argv[1].value; argv[2].value) {
                         const r = argv[3].value;
-                        if (argv[3].meta.type == this.types.br) {
+                        if (argv[3].meta.stop) {
+                            if (argv[3].meta.stopinfo.return) {
+                                return r;
+                            }
                             return undefined;
-                        } else if (argv[3].meta.type == this.types.ret) {
-                            meta.type = this.types.ret;
-                            return r;
                         }
                     }
                     return undefined;
@@ -2920,7 +2915,10 @@ class context {
         this._offset = val;
     }
     get horizonal() {
-        return this._horizonal;
+        if (this.context.length == 0) {
+            return undefined;
+        }
+        return this.context[0].horizonal;
     }
     set horizonal(val) {
         this._horizonal = val;
@@ -3111,31 +3109,71 @@ class predictor {
     }
 }
 
-// 式を読み込んで全体的な解釈をするクラス
-class contexts {
-    get ptr() {
-        return this._ptr;
+class bracketContext {
+    constructor(config, contexts) {
+        this._contexts = [];
+        this._prevpuncs = [[0]];
+        this._latests = [0];
+        this.config = config;
+        this.contexts = contexts;
     }
-    set ptr(val) {
-        this._ptr = val;
-    }
-    // 
 
-    get punctuations() {
-        return this._prevpunc;
+
+    get width() {
+        if (this._width === undefined) {
+            this.width = (this.config.width + 1) || 2;
+        }
+        return this._width;
+    }
+    get distance() {
+        if (this._distance === undefined) {
+            this.distance = this.config.distance || 0;
+        }
+        return this._distance;
+    }
+    set width(val) {
+        this._width = val;
+    }
+    set distance(val) {
+        this._distance = val;
+    }
+
+    set prevpunc(val) {
+        const prevpunc = this._prevpuncs[0];
+        let index = prevpunc.length - 1;
+        for (let i = 0; i < prevpunc.length; i++) {
+            if (prevpunc[index] == val) {
+                index = -1;
+                break;
+            } else if (prevpunc[index] < val) {
+                break;
+            }
+            index--;
+        }
+        if (index < 0) {
+            return;
+        }
+        prevpunc.splice(index + 1, 0, val);
+    }
+
+    get latest() {
+        return this._latests[0];
+    }
+    set latest(val) {
+        if (this._latests[0] < val) {
+            this._latests[0] = val;
+        }
     }
 
     get prevpunc() {
-        if (this._prevpunc === undefined) {
-            this._prevpunc = [0];
-        }
-        let index = this._prevpunc.length - (this.distance + this.width + 1);
-        let next = this._prevpunc[index + 1];
-        let value = this._prevpunc[index];
+        const prevpunc = this._prevpuncs[0];
+        let index = prevpunc.length - (this.distance + this.width + 1);
+        let next = prevpunc[index + 1];
+        let value = prevpunc[index];
         // 文末表現が右に隣接しているとき左の要素も必要
         while (index > 0) {
             if (next - value > 1) {
-                const range = this.program.filter((v, i) => (value <= i && i < next-1));
+                const range = this.contexts.program.filter((v, i) => (value <= i && i < next - 1));
                 if (
                     range.find(v => v.find(v => v.define.order != module.exports.join.orders.order.nojoin))
                 ) {
@@ -3144,57 +3182,60 @@ class contexts {
                 // 間の要素に空白しかないならば、実質的に文末表現ではないので次を探す。
             }
             index--;
-            value = this._prevpunc[index];
-            next = this._prevpunc[index + 1];
+            value = prevpunc[index];
+            next = prevpunc[index + 1];
         }
-        return value;
+        //console.log('punc', value, bracket, index)
+        return value;//Math.max(value, bracket);
     }
     get prevend() {
-        if (this._prevpunc === undefined) {
-            this._prevpunc = [0];
-        }
-        const index = this._prevpunc.length - (this.distance + 1);
+        const prevpunc = this._prevpuncs[0];
+        const index = prevpunc.length - (this.distance + 1);
         if (index < this.width) {
             return -1;
-        } else if (this._prevpunc[index - this.width] < this.latest) {
+        } else if (prevpunc[index - this.width] < this.latest) {
             return -1;
         }
-        return this._prevpunc[index];
-    }
-    set prevpunc(val) {
-        if (this._prevpunc === undefined) {
-            this._prevpunc = [0];
-        }
-        let index = this._prevpunc.length - 1;
-        for (let i = 0; i < this._prevpunc.length; i++) {
-            if (this._prevpunc[index] == val) {
-                index = -1;
-                break;
-            } else if (this._prevpunc[index] < val) {
-                break;
-            }
-            index--;
-        }
-        if (index < 0) {
-            return;
-        }
-        this._prevpunc.splice(index + 1, 0, val);
+        return prevpunc[index];
     }
 
-    get latest() {
-        if (this._latest === undefined) {
-            this.latest = 0;
+    at(index, value) {
+        if (value) {
+            this._contexts[index] = value;
         }
-        return this._latest;
+        return this._contexts[index];
     }
-    set latest(val) {
-        if (this._latest === undefined || this._latest < val) {
-            this._latest = val;
+    get length() {
+        return this._contexts.length;
+    }
+    shift() {
+        this._prevpuncs.shift();
+        this._latests.shift();
+        return this._contexts.shift();
+    }
+    unshift(...args){
+        let i;
+        for (i = 0; i < args.length; i++) {
+            const v = args[args.length - i - 1];
+            this._contexts.unshift(v);
+            this._latests.unshift(v.horizonal);
+            this._prevpuncs.unshift([v.horizonal]);
         }
+        return i;
+    }
+}
+
+// 式を読み込んで全体的な解釈をするクラス
+class contexts {
+    get ptr() {
+        return this._ptr;
+    }
+    set ptr(val) {
+        this._ptr = val;
     }
 
     confirmbody(node) {
-        this.latest = node.horizonal;
+        this.brackets.latest = node.horizonal;
         this.program[node.horizonal] = this.program[node.horizonal].filter(v => v.vertical == node.vertical);
         this.program[node.horizonal][0].context = this.program[node.horizonal][0].context.filter(v => v.vertical == node.vertical);
         
@@ -3207,7 +3248,7 @@ class contexts {
                 // punkblankを含む制御構文が確定的に文末表現のときprevpuncとして扱い、これより前の要素について再検討されないようにする。
                 // * 再検討されると、自身の左手側が存在しないパターンが発生する
                 if (node.priority <= this.config.ops.puncpriority) {
-                    this.prevpunc = node.horizonal + 1;
+                    this.brackets.prevpunc = node.horizonal + 1;
                 }
                 this.confirmbody(node);
                 if (this.config.predict && prd) {
@@ -3274,10 +3315,10 @@ class contexts {
         }
         this.program.push(context);
         if (maxpriority <= this.config.ops.puncpriority && this.config.ops.ispunctuation(keyword)) {
-            this.prevpunc = this.program.length;
-            if (this.prevend > 0) {
-                const end = this.prevend;
-                const start = this.prevpunc;
+            this.brackets.prevpunc = this.program.length;
+            if (this.brackets.prevend > 0) {
+                const end = this.brackets.prevend;
+                const start = this.brackets.prevpunc;
                 const predict = (() => {
                     if (!this.config.predict) {
                         return {confirms:[]};
@@ -3292,7 +3333,7 @@ class contexts {
                         };
                     }).map(node => {
                         this.confirmbody(node);
-                        this.latest = node.horizonal;
+                        this.brackets.latest = node.horizonal;
                         this.program[node.horizonal] = this.program[node.horizonal].filter(v => v.vertical == node.vertical);
                         this.program[node.horizonal][0].context = this.program[node.horizonal][0].context.filter(v => v.vertical == node.vertical);
                     });
@@ -3308,25 +3349,6 @@ class contexts {
                 }
             }
         }
-    }
-
-    get width() {
-        if (this._width === undefined) {
-            this.width = (this.config.width + 1) || 2;
-        }
-        return this._width;
-    }
-    get distance() {
-        if (this._distance === undefined) {
-            this.distance = this.config.distance || 0;
-        }
-        return this._distance;
-    }
-    set width(val) {
-        this._width = val;
-    }
-    set distance(val) {
-        this._distance = val;
     }
 
     // program形式で保存されたinterpretationをクローンしながらコピー。
@@ -3777,7 +3799,7 @@ class contexts {
         if (end === undefined) {
             end = this.program.length;
             if (start == 0) {
-                const prevpunc = this.prevpunc;
+                const prevpunc = this.brackets.prevpunc;
                 const dep = this.dependency(prevpunc, end);
                 dep.map(root => {
                     this.confirm(root, undefined, end + 1);
@@ -3987,7 +4009,7 @@ class contexts {
         if (open) { // 
             const con = new context(keyword);
             con.context = recurrent;
-            this._temporary.unshift(con);
+            this.brackets.unshift(con);
         }
         return recurrent;
     }
@@ -3997,16 +4019,16 @@ class contexts {
         // ・共通の開始子を持つ兄弟の中で、自分は読み出されず優先度の高い兄弟が読み出された
         // ・共通の開始子を持つ兄弟の中で、自分より優先度の低い要素が閉じた上に上位の文脈の結合子に至った
         let i;
-        for (let index = 0; index < this._temporary.length; index++) {
-            const result = this._temporary[index].contexts;
+        for (let index = 0; index < this.brackets.length; index++) {
+            const result = this.brackets.at(index).contexts;
             const contexts = result.nexters[keyword] || new context(keyword);
             result.functions.filter(v => v.define.matchfunction(keyword, undefined, v)).map(v => contexts.push(v));
-            const closed = this._temporary[index].closed;
+            const closed = this.brackets.at(index).closed;
             if (contexts.length) {
                 const nexters = contexts.context.sort((l, r) => {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
-                this._temporary[index] = new context(keyword);
+                this.brackets.at(index, new context(keyword));
                 const roots = this.dependency(nexters.find(v => !v.invalid).parent.horizonal + 1);
                 const length = (() => {
                     if (roots.length != 1) {
@@ -4017,7 +4039,7 @@ class contexts {
                     }
                     return 1;
                 })();
-                this._temporary[index].context = nexters.filter((op) => {
+                this.brackets.at(index).context = nexters.filter((op) => {
                     if (op) {
                         if (length != op.left) {
                             op.invalid = true;
@@ -4040,10 +4062,10 @@ class contexts {
             return [];
         }
         while (i) {
-            this._temporary.shift();
+            this.brackets.shift();
             i--;
         }
-        return this._temporary[0].context;
+        return this.brackets.at(0).context;
     }
 
     get program() {
@@ -4053,8 +4075,8 @@ class contexts {
     constructor(config) {
         this.config = config;
         this._constant = config.ops.constant;   // [opdefine, opdefine,]
-        this._temporary = []; // [[interpretation2], [interpretation2, interpretation2]]
-        this._program = []; // [[interpretation2], [interpretation2, interpretation2]]
+        this.brackets = new bracketContext(config, this); // [context, context, ...]
+        this._program = []; // [[interpretation1], [interpretation1, interpretation2]]
     }
 }
 
