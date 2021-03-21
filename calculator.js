@@ -134,18 +134,21 @@ class config {
 
             this.ctrldefine(
                 ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
-                (argv, meta) => {
+                (argv, meta) => {                  
                     for (argv[0].value; argv[1].value; argv[2].value) {
                         const val = argv[3].value;
                         if (argv[3].meta.stop) {
                             if (!argv[3].meta.stopinfo.break) {
                                 meta.stop = argv[3].meta.stop;
                                 meta.stopinfo = argv[3].meta.stopinfo;
+                            } else {
+                                argv[3].meta.stop = false;
+                                return;
                             }
                             return val;
                         }
                     }
-                    return undefined;
+                    return;
                 },
                 "for"
             ),
@@ -177,7 +180,14 @@ class config {
                     this.join.order.left,
                     (argv, meta, self) => {
                         argv[0].meta.declare = (name, value = 0) => {
-                            self.rootnamespace.declare(name, value, false, 'object')
+                            const success = self.rootnamespace.declare(name, value, false, 'object');
+                            if (!success) {
+                                argv[0].meta.stop = true;
+                                argv[0].meta.stopinfo = {
+                                    throw: true,
+                                    name: 'throw',
+                                };
+                            }
                         };
                         argv[0].meta.deftypename = 'object';
                         argv[0].value;
@@ -874,8 +884,8 @@ class config {
                         return false;
                     },
                     this.join.order.left,
-                    (val) => {
-                        return Number(val);
+                    (val, meta, self) => {
+                        return Number(self.operator);
                     },
                     "dec"
                 ),
@@ -2658,9 +2668,14 @@ class interpretation {
             return undefined;
         })()
         if (first) {
+            const stop = first.meta.stop;
             Object.defineProperty(first, 'value', {
                 get: function () {
-                    return first._oldvalue;
+                    if (first._executed) {
+                        first.meta.stop = stop;
+                        return first._oldvalue;
+                    }
+                    return first._value;
                 },
                 configurable: true
             });
@@ -2672,9 +2687,25 @@ class interpretation {
     get _value() {
         this.args.map(arg => {
             arg.parent = this;
+            arg.meta.stop = false;
         });
         this._executed = true;
         this._oldvalue = this.define.formula(this.args, this.meta, this);
+        const meta = this.args.reduce((acc, arg) => {
+            if (acc.stop) {
+                return acc;
+            }
+            if (arg.meta.stop) {
+                acc.stop = true;
+                acc.stopinfo = arg.meta.stopinfo;
+            }
+            return acc;
+        }, { stop: false });
+        if (meta.stop) {
+            this.meta.stop = meta.stop;
+            this.meta.stopinfo = meta.stopinfo;
+            return;
+        }
         return this._oldvalue;
     }
 
@@ -4418,7 +4449,7 @@ class value {
 
     set value(val) {
         if (this.constant) {
-            myconsole.programerror(name, "is constant.");
+            myconsole.programerror("This is constant.");
         } else if (this.setter) {
             this.setter(this, val);
         } else {
@@ -4488,8 +4519,10 @@ class property {
     declare(name, val, constant, typename, setter) {
         if (name in this._local) {
             myconsole.programerror(name, "is already declared.");
+            return false;
         } else {
             this._local[name] = new value(val, constant, typename, setter);
+            return true;
         }
     }
 
@@ -4504,11 +4537,13 @@ class property {
             }
         } else {
             if (this.parent) {
-                this.parent.set(name, val);
+                return this.parent.set(name, val);
             } else {
                 myconsole.programerror(name, "is not declared.");
+                return false;
             }
         }
+        return true;
     }
 
     access(name) {
@@ -4554,6 +4589,7 @@ class calculator {
         }
         return this._namespace;
     }
+
     set namespace(val) {
         this._namespace = val;
     }
