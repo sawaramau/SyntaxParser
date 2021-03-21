@@ -361,12 +361,15 @@ class config {
                             argv[0].meta.declare = (name) => {
                                 meta.declare(name, value);
                             }
+                        } else {
+                            argv[0].meta.set = (name, property) => {
+                                if (property) {
+                                    return property.set(name, value);
+                                }
+                                return argv[0].rootnamespace.set(name, value);
+                            }
                         }
-                        
-                        const ret = argv[0].value;
-                        const name = argv[0].name;
-                        self.rootnamespace.set(name, value);
-                        return ret;
+                        return argv[0].value;
                     },
                     "{}"
                 ),
@@ -391,16 +394,13 @@ class config {
                     this.join.order.right,
                     (argv, meta) => {
                         const property = meta.self.property;
-                        argv[0].value;
-                        const name = argv[0].name;
                         const value = {
                             value: argv[1].value,
                         };
-                        if (property.include(name)) {
-                            property.set(name, value, false);
-                        } else {
+                        argv[0].meta.declare = (name) => {
                             property.declare(name, value, false);
                         }
+                        argv[0].value;
                         return undefined;
                     },
                     ":"
@@ -729,9 +729,12 @@ class config {
                         argv[1].property = property;
                         self.property = property;
                         if (meta.set) {
-                            argv[1].meta.set = meta.set;
+                            argv[1].meta.set = (name) => {
+                                meta.set(name, property);
+                            }
                         }
-                        return argv[1].value;
+                        const ret = argv[1].value;
+                        return ret;
                     },
                     "."
                 ),
@@ -810,6 +813,9 @@ class config {
                         if (meta.declare) {
                             meta.declare(name);
                         }
+                        if (meta.set) {
+                            meta.set(name);
+                        }
                         meta.name = name;
                         meta.ref = property.resolve(name);
                         if (meta.ref) {
@@ -885,6 +891,9 @@ class config {
                         const name = self.operator;
                         if (meta.declare) {
                             meta.declare(name);
+                        }
+                        if (meta.set) {
+                            meta.set(name);
                         }
                         meta.name = name;
                         meta.ref = property.resolve(name);
