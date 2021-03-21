@@ -6,8 +6,8 @@ class config {
     constructor(opdefs, punctuations, puncblanks, hooks, reserved, controls) {
         this.join = module.exports.join.orders;
         this.types = itemtype.types();
-        this.opdefine = (grammer, order, formula, groupid, meta, root = 0, inouts = null) => {
-            return new opdefine(grammer, order, formula, groupid, meta, root, inouts);
+        this.opdefine = (grammer, order, formula, groupid) => {
+            return new opdefine(grammer, order, formula, groupid);
         }
         this.ctrldefine = (grammer, formula, groupid) => {
             return new ctrldefine(grammer, formula, groupid);
@@ -361,7 +361,8 @@ class config {
                             argv[0].meta.declare = (name) => {
                                 meta.declare(name, value);
                             }
-                        } 
+                        }
+                        
                         const ret = argv[0].value;
                         const name = argv[0].name;
                         self.rootnamespace.set(name, value);
@@ -762,13 +763,7 @@ class config {
                 ),
 
                 this.opdefine(
-                    [(val) => { return val == "{"; }, 1, 
-                    (val, ptr, self) => {
-                        if (self) {
-                            // selfは意味の解釈時にしか付かない。
-                        }
-                        return val == "}"; 
-                    }],
+                    ["{", 1, "}"],
                     this.join.order.left,
                     (argv, meta) => {
                         argv[0].property = new property();
@@ -2993,6 +2988,7 @@ class context {
         const contexts = {};
         contexts.nexters = {};
         contexts.functions = [];
+        contexts.count = 0;
         for (let def of this.context) {
             const nexter = def.nexter;
             if (!nexter || def.invalid || nexter.invalid) {
@@ -3006,6 +3002,7 @@ class context {
             } else {
                 contexts.functions.push(nexter);
             }
+            contexts.count++;
         }
         return contexts;
     }
@@ -3189,8 +3186,7 @@ class bracketContext {
             value = prevpunc[index];
             next = prevpunc[index + 1];
         }
-        //console.log('punc', value, bracket, index)
-        return value;//Math.max(value, bracket);
+        return value;
     }
     get prevend() {
         const prevpunc = this._prevpuncs[0];
@@ -3213,6 +3209,9 @@ class bracketContext {
         return this._contexts.length;
     }
     shift() {
+        if (this._contexts.length == 0) {
+            return;
+        }
         this._prevpuncs.shift();
         this._latests.shift();
         return this._contexts.shift();
@@ -3307,7 +3306,6 @@ class contexts {
         
         let ispunc = true;
         context.map((interpretation, index) => {
-            interpretation.horizonal = this.program.length;
             interpretation.vertical = index;
             interpretation.context = context;
             ispunc = interpretation.define.punctuation && ispunc;
@@ -3321,6 +3319,7 @@ class contexts {
             if (this.brackets.prevend > 0) {
                 const end = this.brackets.prevend;
                 const start = this.brackets.prevpunc;
+                
                 const predict = (() => {
                     if (!this.config.predict) {
                         return {confirms:[]};
@@ -3802,6 +3801,9 @@ class contexts {
         if (end === undefined) {
             end = this.program.length;
             if (start == 0) {
+                while (this.brackets.length) {
+                    this.brackets.shift(); // 始点も終点も未定義で呼ばれる時は末尾なので、囲み文字は閉じておく
+                }
                 const prevpunc = this.brackets.prevpunc;
                 const dep = this.dependency(prevpunc, end);
                 dep.map(root => {
@@ -3989,7 +3991,7 @@ class contexts {
 
     context(keyword) {
         const current = this.current(keyword); // 囲み文字としての現在可能な解釈
-
+        current.map(v => v.horizonal = this.program.length);
         if (current.length) {
             // 囲み文字としての解釈があればそれが優先される
             return current;
@@ -4008,6 +4010,7 @@ class contexts {
                 }
             }
         }
+        reserved.map(v => v.horizonal = this.program.length);
         const recurrent = reserved.length ? reserved : current;
         if (open) { // 
             const con = new context(keyword);
@@ -4032,7 +4035,7 @@ class contexts {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
                 this.brackets.at(index, new context(keyword));
-                const roots = this.dependency(nexters.find(v => !v.invalid).parent.horizonal + 1);
+                const roots = this.dependency(nexters.find(v => !v.invalid).parent.horizonal + 1, this.program.length);
                 const length = (() => {
                     if (roots.length != 1) {
                         return roots.length;
@@ -4068,7 +4071,12 @@ class contexts {
             this.brackets.shift();
             i--;
         }
-        return this.brackets.at(0).context;
+        const ret = this.brackets.at(0);
+        if (ret.contexts.count === 0) {
+            // 閉じる事が確定しているならば閉じる。（閉じていないと逐次処理側で事故る）
+            this.brackets.shift();
+        }
+        return ret.context;
     }
 
     get program() {
