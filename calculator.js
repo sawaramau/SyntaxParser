@@ -49,7 +49,7 @@ class config {
                 "break"
             ),
             this.ctrldefine(
-                ["if", "(", 1, ")", "{", 1, "}"],
+                ["if", "(", 1, ")", "{", 0.5, "}"],
                 (argv, meta) => {
                     if (argv[0].value) {
                         meta.success = true;
@@ -133,7 +133,7 @@ class config {
             ),
 
             this.ctrldefine(
-                ["for", "(", 1, ";", 1, ";", 1, ")", "{", 1, "}"],
+                ["for", "(", 1, ";", 1, ";", 1, ")", "{", 0.5, "}"],
                 (argv, meta) => {                  
                     for (argv[0].value; argv[1].value; argv[2].value) {
                         const val = argv[3].value;
@@ -785,8 +785,8 @@ class config {
                     },
                     "{}"
                 ),
-            ],
-            [
+            //],
+            //[
 
 
                 this.opdefine(
@@ -2226,6 +2226,14 @@ class interpretation {
         }
     }
 
+    set dummychild(val) {
+        this._dummychild = val;
+    }
+
+    get dummychild() {
+        return this._dummychild;
+    }
+
     set childtrees(val) {
         this._childtrees = [];
         this._childblanktrees = [];
@@ -2377,6 +2385,9 @@ class interpretation {
             while (nexter) {
                 for (let node of nexter.childtrees) {
                     right.push(node);
+                }
+                if (nexter.dummychild) {
+                    right.push(nexter.dummychild);
                 }
                 nexter._tmpparent = this;
                 nexter = nexter.nexter;
@@ -2823,6 +2834,12 @@ class interpretation {
         }
         if (this.invalid) {
             return -1;
+        }
+        if (this.define.left == 0.5) {
+            if ((this._childtrees.length === 0 && this._dummychild)|| this._childtrees.length === 1) {
+                return 0;
+            }
+            return 1;
         }
         if (this._parent) {
             return this.define.left - this._childtrees.length;
@@ -4087,7 +4104,14 @@ class contexts {
                 })();
                 this.brackets.at(index).context = nexters.filter((op) => {
                     if (op) {
-                        if (length != op.left) {
+                        if (op.define.left == 0.5 && length < 2) {
+                            if (length === 0) {
+                                // ダミー要素を仕込む
+                                op.dummychild = new interpretation();
+                                op.dummychild.horizonal = op.horizonal - 1;
+                            }
+                            op.childtrees = roots;
+                        } else if (length != op.left) {
                             op.invalid = true;
                             return false;
                         } else {
