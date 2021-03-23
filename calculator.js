@@ -2165,8 +2165,8 @@ class interpretation {
                 return node;
             }
         }
-        myconsole.implmenterror("undefined absolute horizonal access:", this.allnodes.map(v => v.horizonal))
-        myconsole.implmenterror(horizonal, this.horizonal, this.first);
+        myconsole.implmenterror("undefined absolute horizonal access:", this.starter.allnodes.map(v => v.horizonal))
+        myconsole.implmenterror(horizonal, this.starter.horizonal, this.horizonal, this.starter.first, this.first);
         return undefined;
     }
 
@@ -2863,7 +2863,9 @@ class interpretation {
                 return false;
             }
             if (val.parent) {
-                return false;
+                if (!val.parent.invalid) {
+                    return false;
+                }
             }
 
             val.parent = this.starter;
@@ -2900,7 +2902,9 @@ class interpretation {
                 return false;
             }
             if (val.parent) {
-                return false;
+                if (!val.parent.invalid) {
+                    return false;
+                }
             }
             val.parent = this.starter;
 
@@ -3855,6 +3859,7 @@ class contexts {
                 });
             }
         }
+
         const program = this.mintrees(start, end);
         const trees = this.retree(program);
         if (isall) {
@@ -4079,7 +4084,9 @@ class contexts {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
                 this.brackets.at(index, new context(keyword));
-                const roots = this.dependency(nexters.find(v => !v.invalid).parent.horizonal + 1, this.program.length);
+                const start = nexters.find(v => !v.invalid).parent.horizonal + 1;
+                const end = this.program.length;
+                const roots = this.dependency(start, end);
                 const length = (() => {
                     if (roots.length != 1) {
                         return roots.length;
