@@ -763,9 +763,12 @@ class config {
                     "()"
                 ),
                 this.opdefine(
-                    ["[", 1, "]"],
+                    ["[", 0.5, "]"],
                     this.join.order.left,
                     (argv, meta) => {
+                        if (argv[0].meta.dummy) {
+                            return [];
+                        }
                         const val = argv[0].value;
                         if (val instanceof internalArray) {
                             return [].concat(val);
@@ -776,34 +779,17 @@ class config {
                 ),
 
                 this.opdefine(
-                    ["{", 1, "}"],
+                    ["{", 0.5, "}"],
                     this.join.order.left,
                     (argv, meta) => {
+                        if (argv[0].meta.dummy) {
+                            return new property();
+                        }
                         argv[0].property = new property();
                         argv[0].value;
                         return argv[0].property
                     },
                     "{}"
-                ),
-            //],
-            //[
-
-
-                this.opdefine(
-                    ["{", "}"],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        return new property();
-                    },
-                    "{}"
-                ),
-                this.opdefine(
-                    ["[", "]"],
-                    this.join.order.left,
-                    (argv, meta) => {
-                        return [];
-                    },
-                    "[]"
                 ),
             ],
 
@@ -2825,6 +2811,7 @@ class interpretation {
     get define() {
         return this._define;
     }
+    
     get order() {
         return this.define.order;
     }
@@ -4108,7 +4095,8 @@ class contexts {
                             if (length === 0) {
                                 // ダミー要素を仕込む
                                 op.dummychild = new interpretation();
-                                op.dummychild.horizonal = op.horizonal - 1;
+                                //op.dummychild.horizonal = op.horizonal;
+                                op.dummychild.meta.dummy = true;
                             }
                             op.childtrees = roots;
                         } else if (length != op.left) {
