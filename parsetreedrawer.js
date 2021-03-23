@@ -9,11 +9,11 @@ class drawer {
         this.yoffset = 100;
         this.xoffset = 100;
         this.r = 40;
-        this.margin = 60;
+        this.margin = 90;
         this.dmargin = 150;
         this.edger = 30;
         this.trees = calculator.trees;
-        this.src = this.trees.map(v => v.allnodes).reduce((acc, v) => { return acc.concat(v) }, []);
+        this.src = this.trees.map(v => v.allnodes).reduce((acc, v) => { v.map(v => {acc.push(v); acc.push(v.dummychild);}); return acc; }, []).filter(v => v);
         this.maxwidth = this.src.length + 2;
         this.maxdepth = 0;
 
@@ -40,7 +40,11 @@ class drawer {
                 setdepth(v, depth + 1, node)
             });
             if (node.nexter) {
-                setdepth(node.nexter, depth, node)
+                setdepth(node.nexter, depth, node);
+            }
+            if (node.dummychild) {
+                node.dummychild.horizonal = node.horizonal - 0.5;
+                setdepth(node.dummychild, depth + 1, node);
             }
         }
 
@@ -164,7 +168,9 @@ class drawer {
                 .attr('cx', '50%')
                 .attr('cy', '50%')
                 .style('fill', d => {
-                    if (d.define.order === -1) {
+                    if (d.meta.dummy) {
+                        return '#66eeff';
+                    } else if (d.define.order === -1) {
                         return '#77eeff';
                     } else if (d._parent) {
                         if (d.nexter) {
@@ -184,7 +190,12 @@ class drawer {
                 .attr('y', '70%')
                 .attr('width', '50%')
                 .attr('text-anchor', 'middle')
-                .text(d => d.first)
+                .text(d => {
+                    if (d.meta.dummy) {
+                        return 'dummy';
+                    }
+                    return d.first
+                })
                 .style('fill', 'white');
             this.operators.append('text')
                 .attr('x', '50%')
