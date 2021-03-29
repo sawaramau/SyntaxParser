@@ -6,13 +6,13 @@ class config {
     constructor(opdefs, punctuations, puncblanks, hooks, reserved, controls) {
         this.join = module.exports.join.orders;
         this.types = itemtype.types();
-        this.opdefine = (grammer, order, formula, groupid) => {
-            return new opdefine(grammer, order, formula, groupid);
+        this.opdefine = (grammer, order, formula, groupid, gen) => {
+            return new opdefine(grammer, order, formula, groupid, gen);
         }
         this.ctrldefine = (grammer, formula, groupid) => {
             return new ctrldefine(grammer, formula, groupid);
         };
-        this.reserved = reserved || ['false', 'true', 'undefined', 'return', 'var', 'break'];
+        this.reserved = reserved || ['false', 'true', 'undefined', 'return', 'var', 'break', 'for'];
 
         this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
         this.punctuations = punctuations || [';']; // 文末として解釈される文字群
@@ -115,7 +115,7 @@ class config {
             ),
 
             this.ctrldefine(
-                ["for", "(", 1, ")", "{", 1, "}"],
+                ["for", "(", 1, ")", "{", 0.5, "}"],
                 (argv, meta) => {
                     for (let i = 0; i < argv[0].value; i++) {
                         const val = argv[1].value;
@@ -133,7 +133,7 @@ class config {
             ),
 
             this.ctrldefine(
-                ["for", "(", 1, ";", 1, ";", 1, ")", "{", 0.5, "}"],
+                ["rfor", "(", 1, ";", 1, ";", 1, ")", "{", 0.5, "}"],
                 (argv, meta) => {                  
                     for (argv[0].value; argv[1].value; argv[2].value) {
                         const val = argv[3].value;
@@ -618,7 +618,7 @@ class config {
             // 配列・辞書・関数
             [
                 this.opdefine(
-                    ["(", 1, ")", "=>", "{", 1, "}"],
+                    ["(", 1, ")", "=>", "{", 1, "}"], // ← これと['(', 1, ')']が競合して決定打を打てない事が、バグの原因 r(
                     this.join.order.right,
                     (argv) => {
                         return (args) => {
@@ -1624,18 +1624,24 @@ class ctrldefine {
             return val2;
         }
     }
+
+    gen(op, parent) {
+        op.isCtrl = true;
+    }
+
     get solo() {
         if (this.left || this.right) {
             return undefined;
         }
-        return new opdefine(this.grammer, this.order, this.addformula(0, 0), this.groupid);
+        return new opdefine(this.grammer, this.order, this.addformula(0, 0), this.groupid, this.gen);
     }
     get bothone() {
         const left = Math.max(0, 1 - this.left);
         const right = Math.max(0, 1 - this.right);
         return new opdefine([left].concat(this.grammer).concat([right]), this.order,
             this.addformula(left, right),
-            this.groupid
+            this.groupid,
+            this.gen
         );
     }
     get leftone() {
@@ -1643,7 +1649,8 @@ class ctrldefine {
         const right = 0;
         return new opdefine([left].concat(this.grammer).concat([right]), this.order,
             this.addformula(left, right),
-            this.groupid
+            this.groupid,
+            this.gen
         );
     }
     get rightone() {
@@ -1651,7 +1658,8 @@ class ctrldefine {
         const right = Math.max(0, 1 - this.right);
         return new opdefine([left].concat(this.grammer).concat([right]), this.order,
             this.addformula(left, right),
-            this.groupid
+            this.groupid,
+            this.gen
         );
     }
     get left() {
@@ -1692,7 +1700,7 @@ class ctrldefine {
 
 // 命令定義用クラス
 class opdefine {
-    constructor(grammer, order, formula, groupid, meta, root = 0, inouts = null) {
+    constructor(grammer, order, formula, groupid, gen, meta) {
         if (grammer === undefined) {
             this.grammer = ['undefined'];
             this.formula = () => {
@@ -1705,7 +1713,8 @@ class opdefine {
         this.formula = formula;
         this.groupid = groupid;
         this.meta = meta; // free space. meta data
-        this.root = root;
+        this.gen = gen;
+        //this.root = root;
         //this._inouts = inouts;
     }
 
@@ -1854,7 +1863,7 @@ class opdefine {
         const def = new opdefine(grammer, this.order, (argv, meta, self) => {
             self.operator = keyword;
             return this.formula(argv, meta, self);
-        }, this.groupid, this.meta, this.root, this._inouts);
+        }, this.groupid, this.gen, this.meta);
         def.priority = this.priority;
         def.punctuation = this.punctuation;
         return def;
@@ -1869,7 +1878,7 @@ class opdefine {
             const def = new opdefine([keyword], this.order, (argv, meta, self) => {
                 self.operator = keyword;
                 return this.formula(keyword, meta, self);
-            }, this.groupid, this.meta, this.root);
+            }, this.groupid, this.gen, this.meta);
             def.priority = this.priority;
             def.punctuation = this.punctuation;
             const int = new interpretation(def);
@@ -1877,7 +1886,7 @@ class opdefine {
         } else {
             const def = new opdefine([keyword], this.order, () => {
                 return undefined;
-            }, this.groupid, this.meta, this.root);
+            }, this.groupid, this.gen, this.meta);
             def.priority = this.priority;
             def.punctuation = this.punctuation;
             const int = new interpretation(def);
@@ -1966,7 +1975,7 @@ class opdefine {
 
         this._nexter = new opdefine(grammer, this.order, () => {
             // interpretation側で解決
-        }, this.groupid, null, this.root + 1); //, this._inouts.shift(this.left));
+        }, this.groupid, this.gen); //, this._inouts.shift(this.left));
 
         this._nexter.priority = this.priority;
         this._nexter.parent = this;
@@ -1999,7 +2008,6 @@ class interpretation {
         if (define === undefined) {
             define = new opdefine();//myconsole.implmenterror("Unexpected define. This is undefined", parent);
         }
-
         this._invalid = false;
         this._define = define; // opdefine
         if (parent) {
@@ -2014,6 +2022,9 @@ class interpretation {
         this._leftblank = [];
         this._rightblank = [];
         this._childblanktrees = [];
+        if (define.gen) {
+            define.gen(this, parent);
+        }
     }
 
     printtree(hist = {}, depth = 0, color = 0) {
@@ -2055,6 +2066,16 @@ class interpretation {
             node.printtree(hist, depth + 1, 1);
         }
         hist[depth] = " ";
+    }
+
+    get isCtrl() {
+        if (this.meta.isCtrl === undefined) {
+            this.meta.isCtrl = false;
+        }
+        return this.meta.isCtrl;
+    }
+    set isCtrl(val) {
+        return this.meta.isCtrl = val;
     }
 
     get typename() {
@@ -2357,6 +2378,7 @@ class interpretation {
     get typeset() {
         return this.define._inouts;
     }
+    
 
     get args() {
         // 引数として渡すときの左右の要素
@@ -2555,6 +2577,16 @@ class interpretation {
 
     get grammer() {
         return this.define.grammer;
+    }
+
+    get orggrammer() {
+        let int = this.starter;
+        const grammer = [];
+        while (int) {
+            int.grammer.map(v => grammer.push(v));
+            int = int.nexter;
+        }
+        return grammer;
     }
 
     get clone() {
@@ -2962,10 +2994,12 @@ class context {
         this._offset = val;
     }
     get horizonal() {
-        if (this.context.length == 0) {
-            return undefined;
+        for (let i = 0; i < this.length; i++) {
+            if (this.context[i] && !this.context[i].invalid) {
+                return this.context[i].horizonal;
+            }
         }
-        return this.context[0].horizonal;
+        return undefined;
     }
     set horizonal(val) {
         this._horizonal = val;
@@ -3032,11 +3066,28 @@ class context {
         return true;
     }
 
+    check(starter) {
+        for (let def of this.context) {
+            const nexter = def.nexter;
+            if (!nexter || def.invalid || nexter.invalid) {
+                // なにもしない
+                continue;
+            }
+            if (def.starter.horizonal === starter.horizonal) {
+                continue;
+            }
+            if (nexter.define.left === 0) {
+                def.invalid = true;
+            }
+        }
+    }
+
     get contexts() {
         const contexts = {};
         contexts.nexters = {};
         contexts.functions = [];
         contexts.count = 0;
+        contexts.ispunc = true;
         for (let def of this.context) {
             const nexter = def.nexter;
             if (!nexter || def.invalid || nexter.invalid) {
@@ -3051,6 +3102,7 @@ class context {
                 contexts.functions.push(nexter);
             }
             contexts.count++;
+            contexts.ispunc &= def.define.punctuation || def.isCtrl;
         }
         return contexts;
     }
@@ -3163,6 +3215,7 @@ class bracketContext {
         this._contexts = [];
         this._prevpuncs = [[0]];
         this._latests = [0];
+        this._uniques = [-1];
         this.config = config;
         this.contexts = contexts;
     }
@@ -3188,21 +3241,7 @@ class bracketContext {
     }
 
     set prevpunc(val) {
-        const prevpunc = this._prevpuncs[0];
-        let index = prevpunc.length - 1;
-        for (let i = 0; i < prevpunc.length; i++) {
-            if (prevpunc[index] == val) {
-                index = -1;
-                break;
-            } else if (prevpunc[index] < val) {
-                break;
-            }
-            index--;
-        }
-        if (index < 0) {
-            return;
-        }
-        prevpunc.splice(index + 1, 0, val);
+        this.setprevpunc(0, val);
     }
 
     get latest() {
@@ -3215,7 +3254,10 @@ class bracketContext {
     }
 
     get prevpunc() {
-        const prevpunc = this._prevpuncs[0];
+        return this.getprevpunc(0);
+    }
+    getprevpunc(idx) {
+        const prevpunc = this._prevpuncs[idx];
         let index = prevpunc.length - (this.distance + this.width + 1);
         let next = prevpunc[index + 1];
         let value = prevpunc[index];
@@ -3234,10 +3276,35 @@ class bracketContext {
             value = prevpunc[index];
             next = prevpunc[index + 1];
         }
+        if (value === undefined) {
+            myconsole.implmenterror('prevpunc calculation failed.', index, prevpunc, this._prevpuncs[1]);
+        }
         return value;
     }
-    get prevend() {
-        const prevpunc = this._prevpuncs[0];
+
+    setprevpunc(idx, val) {
+        if (val === undefined) {
+            myconsole.implmenterror('This horizonal value is undefined.');
+        }
+        const prevpunc = this._prevpuncs[idx];
+        let index = prevpunc.length - 1;
+        for (let i = 0; i < prevpunc.length; i++) {
+            if (prevpunc[index] == val) {
+                index = -1;
+                break;
+            } else if (prevpunc[index] < val) {
+                break;
+            }
+            index--;
+        }
+        if (index < 0) {
+            return;
+        }
+        prevpunc.splice(index + 1, 0, val);
+    }
+
+    getprevend(idx) {
+        const prevpunc = this._prevpuncs[idx];
         const index = prevpunc.length - (this.distance + 1);
         if (index < this.width) {
             return -1;
@@ -3247,30 +3314,41 @@ class bracketContext {
         return prevpunc[index];
     }
 
-    at(index, value) {
+    get prevend() {
+        return this.getprevend(0);
+    }
+
+    at(index, value, horizonal) {
         if (value) {
             this._contexts[index] = value;
+            this._latests[index] = horizonal;
+            this._prevpuncs[index] = [horizonal + 1];
+            //this.setprevpunc(index, horizonal);
         }
         return this._contexts[index];
     }
     get length() {
         return this._contexts.length;
     }
-    shift() {
+    shift(horizonal) {
         if (this._contexts.length == 0) {
             return;
         }
-        this._prevpuncs.shift();
+        const p = this._prevpuncs.shift();
         this._latests.shift();
-        return this._contexts.shift();
+        const u = this._uniques.shift();
+        const ret = this._contexts.shift();
+        return ret;
     }
+
     unshift(...args){
         let i;
         for (i = 0; i < args.length; i++) {
             const v = args[args.length - i - 1];
             this._contexts.unshift(v);
+            this._uniques.unshift(v.horizonal);
             this._latests.unshift(v.horizonal);
-            this._prevpuncs.unshift([v.horizonal]);
+            this._prevpuncs.unshift([v.horizonal + 1]);
         }
         return i;
     }
@@ -3289,7 +3367,6 @@ class contexts {
         this.brackets.latest = node.horizonal;
         this.program[node.horizonal] = this.program[node.horizonal].filter(v => v.vertical == node.vertical);
         this.program[node.horizonal][0].context = this.program[node.horizonal][0].context.filter(v => v.vertical == node.vertical);
-        
     }
 
     confirm(node, prd, end) {
@@ -3353,11 +3430,21 @@ class contexts {
         });
         
         let ispunc = true;
+        let mayblank = false;
         context.map((interpretation, index) => {
             interpretation.vertical = index;
             interpretation.context = context;
-            ispunc = interpretation.define.punctuation && ispunc;
+            ispunc = (interpretation.define.punctuation) && ispunc;
+            mayblank |= interpretation.define.order === module.exports.join.orders.order.nojoin;
         });
+        if (!mayblank && this.brackets.length) {
+            const bracket = this.brackets.at(0);
+            bracket.check(context[0].starter);
+            if (bracket.contexts.count === 0) {
+                // 閉じる事が確定しているならば閉じる。（閉じていないと逐次処理側で事故る）
+                this.brackets.shift(this.program.length);
+            }
+        }
         if (context.length == 0) {
             return;
         }
@@ -3367,7 +3454,6 @@ class contexts {
             if (this.brackets.prevend > 0) {
                 const end = this.brackets.prevend;
                 const start = this.brackets.prevpunc;
-                
                 const predict = (() => {
                     if (!this.config.predict) {
                         return {confirms:[]};
@@ -3394,7 +3480,6 @@ class contexts {
                     dep.map(root => {
                         this.confirm(root, predict, end);
                     });
-
                 }
             }
         }
@@ -3531,7 +3616,7 @@ class contexts {
                         continue;
                     }
                     const grammer = [other.define.left - def.define.left, def.first, other.define.right - def.define.right];
-                    const op = new opdefine(grammer, other.order, undefined, "tree", null, 0, def.typeset);
+                    const op = new opdefine(grammer, other.order, undefined, "tree", other.gen);
                     op.priority = other.priority;
                     op.punctuation = other.punctuation;
                     const int = op.make(undefined);
@@ -3834,7 +3919,10 @@ class contexts {
             const ops = fails.map(v => program[v - start]);
             myconsole.implmenterror([start, end]);
             myconsole.implmenterror("Operator");
-            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.define.left, v.define.right, v.priority, v.invalid, v.vertical])));
+            //ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.define.left, v.define.right, v.priority, v.invalid, v.vertical])));
+            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => v.orggrammer)));
+
+            throw('aaaa');
         }
 
         return program;
@@ -3850,7 +3938,7 @@ class contexts {
             end = this.program.length;
             if (start == 0) {
                 while (this.brackets.length) {
-                    this.brackets.shift(); // 始点も終点も未定義で呼ばれる時は末尾なので、囲み文字は閉じておく
+                    this.brackets.shift(this.program.length); // 始点も終点も未定義で呼ばれる時は末尾なので、囲み文字は閉じておく
                 }
                 const prevpunc = this.brackets.prevpunc;
                 const dep = this.dependency(prevpunc, end);
@@ -3859,7 +3947,6 @@ class contexts {
                 });
             }
         }
-
         const program = this.mintrees(start, end);
         const trees = this.retree(program);
         if (isall) {
@@ -4078,12 +4165,11 @@ class contexts {
             const result = this.brackets.at(index).contexts;
             const contexts = result.nexters[keyword] || new context(keyword);
             result.functions.filter(v => v.define.matchfunction(keyword, undefined, v)).map(v => contexts.push(v));
-            const closed = this.brackets.at(index).closed;
             if (contexts.length) {
                 const nexters = contexts.context.sort((l, r) => {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
-                this.brackets.at(index, new context(keyword));
+                this.brackets.at(index, new context(keyword), this.program.length);
                 const start = nexters.find(v => !v.invalid).parent.horizonal + 1;
                 const end = this.program.length;
                 const roots = this.dependency(start, end);
@@ -4119,6 +4205,7 @@ class contexts {
                 i = index;
                 break;
             }
+            const closed = this.brackets.at(index).closed;
             if (!closed) {
                 break;
             }
@@ -4127,14 +4214,10 @@ class contexts {
             return [];
         }
         while (i) {
-            this.brackets.shift();
+            this.brackets.shift(this.program.length);
             i--;
         }
         const ret = this.brackets.at(0);
-        if (ret.contexts.count === 0) {
-            // 閉じる事が確定しているならば閉じる。（閉じていないと逐次処理側で事故る）
-            this.brackets.shift();
-        }
         return ret.context;
     }
 
@@ -4492,15 +4575,19 @@ class property {
         this._local = {};
         this.reserved = {};
         this.nodeclaration = global; // trueのとき、宣言無しのsetはグローバル領域で覚える
+        this._using = [];
     }
 
     toString  () {
         return this._local;
     }
 
+    set usingNamespace(val) {
+        this._using.push(val);
+    }
+
     get meta() {
         const meta = {
-            type: itemtype.types().object,
             self: this,
         };
         return meta;
@@ -4526,8 +4613,20 @@ class property {
         this._parent = val;
     }
 
+    includeUsing(name) {
+        for (let i = 0; i < this._using; i++) {
+            if (this._using[i].include(name, false)) {
+                return this._using[i];
+            }
+        }
+        return undefined;
+    }
+
     include(name, global = false) {
         if (name in this._local) {
+            return true;
+        }
+        if (this.includeUsing(name)) {
             return true;
         }
         if (!global || !this.parent) {
@@ -4572,6 +4671,10 @@ class property {
     resolve(name) {
         if (name in this._local) {
             return this._local[name];
+        }
+        const using = this.includeUsing(name);
+        if (using) {
+            return using._local[name];
         }
         if (this.parent instanceof property) {
             return this.parent.resolve(name);
