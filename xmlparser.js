@@ -19,12 +19,13 @@ class xmlconfig {
                         if (val.length === 1) {
                             return true;
                         }
+                        // 真面目にするならば、属性値などの文字列内の>は無視するようにしないといけない。
                         if (val[val.length - 2] === '>') {
                             return false;
                         }
                         return true;
                     },
-                    1,
+                    0.5,
                     (val, ptr, self) => {
                         if (self) {
                             // （属性とか空白を考慮していないけれども）開始タグとの比較

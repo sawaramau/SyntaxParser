@@ -3107,19 +3107,20 @@ class context {
             if (!nexter || def.invalid || nexter.invalid) {
                 // なにもしない
                 continue;
+            } else if (op === undefined) {
+                contexts.count++;
             } else if (typeof nexter.first == 'string') {
-                if (op === undefined || op.keyword === nexter.first) {
+                if (op.keyword === nexter.first) {
                     if (!(nexter.first in contexts.nexters)) {
                         contexts.nexters[nexter.first] = new context(op || new operator(nexter.first));
                     }
                     contexts.nexters[nexter.first].push(nexter);
                 }
             } else {
-                if (op === undefined || nexter.first(op.keyword)) {
+                if (nexter.define.matchfunction(op.keyword, undefined, nexter)) {
                     contexts.functions.push(nexter);
                 }
             }
-            contexts.count++;
             contexts.ispunc &= def.define.punctuation || def.isCtrl;
         }
         return contexts;
@@ -3479,6 +3480,9 @@ class contexts {
             ispunc = (interpretation.define.punctuation) && ispunc;
             mayblank |= interpretation.define.order === module.exports.join.orders.order.nojoin;
         });
+        if (context.length === 0) {
+            return;
+        }
         if (!mayblank && this.brackets.length) {
             const bracket = this.brackets.at(0);
             bracket.check(context[0].starter);
@@ -3486,9 +3490,6 @@ class contexts {
                 // 閉じる事が確定しているならば閉じる。（閉じていないと逐次処理側で事故る）
                 this.brackets.shift(this.program.length);
             }
-        }
-        if (context.length == 0) {
-            return;
         }
         this.program.push(context);
         if (ispunc) {
