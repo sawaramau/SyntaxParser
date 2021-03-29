@@ -805,7 +805,7 @@ class config {
                         const val = argv[0].value;
 
                         const property = meta.property || self.rootnamespace;
-                        const name = argv[0].meta.name + ' ' + self.operator; //val;
+                        const name = argv[0].meta.name + ' ' + self.operator.keyword; //val;
                         if (meta.declare) {
                             meta.declare(name);
                         }
@@ -871,7 +871,7 @@ class config {
                     },
                     this.join.order.left,
                     (val, meta, self) => {
-                        return Number(self.operator);
+                        return Number(self.operator.keyword);
                     },
                     "dec"
                 ),
@@ -884,7 +884,7 @@ class config {
                     (val, meta, self) => {
 
                         const property = meta.property || self.rootnamespace;
-                        const name = self.operator;
+                        const name = self.operator.keyword;
                         if (meta.declare) {
                             meta.declare(name);
                         }
@@ -1861,7 +1861,7 @@ class opdefine {
             return i == this.firstindex ? keyword : v;
         });
         const def = new opdefine(grammer, this.order, (argv, meta, self) => {
-            self.operator = keyword;
+            //self.operator = keyword;
             return this.formula(argv, meta, self);
         }, this.groupid, this.gen, this.meta);
         def.priority = this.priority;
@@ -1876,7 +1876,7 @@ class opdefine {
         }
         if (this.formula) {
             const def = new opdefine([keyword], this.order, (argv, meta, self) => {
-                self.operator = keyword;
+                //self.operator = keyword;
                 return this.formula(keyword, meta, self);
             }, this.groupid, this.gen, this.meta);
             def.priority = this.priority;
@@ -2004,7 +2004,7 @@ class interpretation {
     // 定義クラスから実際の解釈を生成
     // 解釈の無効を管理
     // offsetは部分的な構文解析時に使用
-    constructor(define, parent, offset = 0) {
+    constructor(define, parent, offset = 0, org = undefined) {
         if (define === undefined) {
             define = new opdefine();//myconsole.implmenterror("Unexpected define. This is undefined", parent);
         }
@@ -2025,6 +2025,19 @@ class interpretation {
         if (define.gen) {
             define.gen(this, parent);
         }
+        if (org) {
+            this.operator = org.operator;
+        }
+    }
+
+    get operator() {
+        if (this.meta._operator === undefined) {
+            myconsole.implmenterror('operator info undefined', this.define.grammer);
+        }
+        return this.meta._operator;
+    }
+    set operator(val) {
+        return this.meta._operator = val;
     }
 
     printtree(hist = {}, depth = 0, color = 0) {
@@ -2590,7 +2603,7 @@ class interpretation {
     }
 
     get clone() {
-        const elm = new interpretation(this.define, this._parent, this.offset);
+        const elm = new interpretation(this.define, this._parent, this.offset, this);
         elm._vertical = this._vertical;
         elm._horizonal = this._horizonal;
         elm._invalid = this._invalid;
@@ -2641,7 +2654,7 @@ class interpretation {
             return undefined;
         }
         if (!this._nexter) {
-            const nexter = new interpretation(this.define.nexter, this, this.offset);
+            const nexter = new interpretation(this.define.nexter, this, this.offset, this);
             this._nexter = nexter;
         }
         return this._nexter;
@@ -2965,8 +2978,9 @@ class interpretation {
 
 // 演算子を読み込んでそれ単体で成立しうる解釈を返すクラス
 class context {
-    constructor(first) {
-        this._first = first;
+    constructor(op) {
+        this._operator = op;
+        this._first = op.keyword;
         this._context = [];
     }
 
@@ -3082,7 +3096,7 @@ class context {
         }
     }
 
-    get contexts() {
+    contexts(op) {
         const contexts = {};
         contexts.nexters = {};
         contexts.functions = [];
@@ -3094,12 +3108,16 @@ class context {
                 // なにもしない
                 continue;
             } else if (typeof nexter.first == 'string') {
-                if (!(nexter.first in contexts.nexters)) {
-                    contexts.nexters[nexter.first] = new context(nexter.first);
+                if (op === undefined || op.keyword === nexter.first) {
+                    if (!(nexter.first in contexts.nexters)) {
+                        contexts.nexters[nexter.first] = new context(op || new operator(nexter.first));
+                    }
+                    contexts.nexters[nexter.first].push(nexter);
                 }
-                contexts.nexters[nexter.first].push(nexter);
             } else {
-                contexts.functions.push(nexter);
+                if (op === undefined || nexter.first(op.keyword)) {
+                    contexts.functions.push(nexter);
+                }
             }
             contexts.count++;
             contexts.ispunc &= def.define.punctuation || def.isCtrl;
@@ -3276,8 +3294,9 @@ class bracketContext {
             value = prevpunc[index];
             next = prevpunc[index + 1];
         }
-        if (value === undefined) {
-            myconsole.implmenterror('prevpunc calculation failed.', index, prevpunc, this._prevpuncs[1]);
+        if (index < 0) {
+            //myconsole.implmenterror('prevpunc calculation failed.', index, prevpunc, this._prevpuncs[1]);
+            value = prevpunc[0];
         }
         return value;
     }
@@ -3424,8 +3443,9 @@ class contexts {
         return prd;
     }
 
-    read(keyword) {
-        const context = this.context(keyword).sort((l, r) => {
+    read(operator) {
+        const keyword = operator.keyword;
+        const context = this.context(operator).sort((l, r) => {
             return l.priority - r.priority;
         });
         
@@ -3433,6 +3453,7 @@ class contexts {
         let mayblank = false;
         context.map((interpretation, index) => {
             interpretation.vertical = index;
+            interpretation.operator = operator;
             interpretation.context = context;
             ispunc = (interpretation.define.punctuation) && ispunc;
             mayblank |= interpretation.define.order === module.exports.join.orders.order.nojoin;
@@ -3440,7 +3461,7 @@ class contexts {
         if (!mayblank && this.brackets.length) {
             const bracket = this.brackets.at(0);
             bracket.check(context[0].starter);
-            if (bracket.contexts.count === 0) {
+            if (bracket.contexts().count === 0) {
                 // 閉じる事が確定しているならば閉じる。（閉じていないと逐次処理側で事故る）
                 this.brackets.shift(this.program.length);
             }
@@ -3920,7 +3941,7 @@ class contexts {
             myconsole.implmenterror([start, end]);
             myconsole.implmenterror("Operator");
             //ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.define.left, v.define.right, v.priority, v.invalid, v.vertical])));
-            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => v.orggrammer)));
+            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.orggrammer, v.operator.row, v.operator.pos])));
 
             throw('aaaa');
         }
@@ -4125,8 +4146,9 @@ class contexts {
         }
     }
 
-    context(keyword) {
-        const current = this.current(keyword); // 囲み文字としての現在可能な解釈
+    context(operator) {
+        const keyword = operator.keyword;
+        const current = this.current(operator); // 囲み文字としての現在可能な解釈
         current.map(v => v.horizonal = this.program.length);
         if (current.length) {
             // 囲み文字としての解釈があればそれが優先される
@@ -4136,7 +4158,8 @@ class contexts {
         const reserved = [];
         for (let define of this._constant) {
             if (define.firstmatch(keyword, this.config.ops.reserved.includes(keyword))) {
-                const op = define.make(keyword);
+                const op = define.make(operator.keyword);
+                op.operator = operator;
                 if (op) {
                     current.push(op);
                     if (op.nexter) {
@@ -4149,27 +4172,28 @@ class contexts {
         reserved.map(v => v.horizonal = this.program.length);
         const recurrent = reserved.length ? reserved : current;
         if (open) { // 
-            const con = new context(keyword);
+            const con = new context(operator);
             con.context = recurrent;
             this.brackets.unshift(con);
         }
         return recurrent;
     }
 
-    current(keyword) {
+    current(operator) {
         // 自身の意味が通じないと分かる瞬間
         // ・共通の開始子を持つ兄弟の中で、自分は読み出されず優先度の高い兄弟が読み出された
         // ・共通の開始子を持つ兄弟の中で、自分より優先度の低い要素が閉じた上に上位の文脈の結合子に至った
+        const keyword = operator.keyword;
         let i;
         for (let index = 0; index < this.brackets.length; index++) {
-            const result = this.brackets.at(index).contexts;
-            const contexts = result.nexters[keyword] || new context(keyword);
+            const result = this.brackets.at(index).contexts(operator);
+            const contexts = result.nexters[keyword] || new context(operator);
             result.functions.filter(v => v.define.matchfunction(keyword, undefined, v)).map(v => contexts.push(v));
             if (contexts.length) {
                 const nexters = contexts.context.sort((l, r) => {
                     return r.priority - l.priority;
                 }); // [interpretation, interpretation, interpretation,...];
-                this.brackets.at(index, new context(keyword), this.program.length);
+                this.brackets.at(index, new context(operator), this.program.length);
                 const start = nexters.find(v => !v.invalid).parent.horizonal + 1;
                 const end = this.program.length;
                 const roots = this.dependency(start, end);
@@ -4183,11 +4207,13 @@ class contexts {
                     return 1;
                 })();
                 this.brackets.at(index).context = nexters.filter((op) => {
+                    op.operator = operator;
                     if (op) {
                         if (op.define.left == 0.5 && length < 2) {
                             if (length === 0) {
                                 // ダミー要素を仕込む
                                 op.dummychild = new interpretation();
+                                //op.dummychild.operator = new operator();
                                 //op.dummychild.horizonal = op.horizonal;
                                 op.dummychild.meta.dummy = true;
                             }
@@ -4230,6 +4256,23 @@ class contexts {
         this._constant = config.ops.constant;   // [opdefine, opdefine,]
         this.brackets = new bracketContext(config, this); // [context, context, ...]
         this._program = []; // [[interpretation1], [interpretation1, interpretation2]]
+    }
+}
+
+class operator {
+    constructor(keyword, row, pos) {
+        this._keyword = keyword;
+        this._row = row;
+        this._pos = pos;
+    }
+    get keyword() {
+        return this._keyword;
+    }
+    get row() {
+        return this._row + 1;
+    }
+    get pos() {
+        return this._pos + 1;
     }
 }
 
@@ -4569,6 +4612,8 @@ class value {
     }
 }
 
+
+
 class property {
     constructor(parent, global = true) {
         this._parent = parent;
@@ -4815,10 +4860,24 @@ class calculator {
     parse() {
         this.result = new contexts(this.config);
         this.result.ptr = this.code;
+        let pos = 0;
+        let row = 0;
+        let rowreg = /(\r\n|\r|\n)/g;
+        let posreg = /(?:\r\n|\r|\n)?(.*)$/;
         const words = [];
         while (this.code.length > 0) {
             const read = this.config.getword(this.code);
-            words.push(read.keyword);
+            const op = new operator(read.keyword, row, pos);
+            words.push(op);
+            const rmatch = read.keyword.match(rowreg);
+            const pmatch = read.keyword.match(posreg);
+            if (rmatch) {
+                pos = 0;
+                row += rmatch.length;
+            }
+            if (pmatch) {
+                pos += pmatch[1].length;
+            }
         }
         this.memorylog('read text');
         words.map(word => this.result.read(word));
