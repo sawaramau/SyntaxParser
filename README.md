@@ -1,6 +1,29 @@
 # 構文解析器
 * configクラス内の句点、予約語、演算子、制御構文定義をもとに構文解析～演算実行まで行う何か。
 
+# 使い方
+* デフォルト（適当設計）のconfigを使用する場合のサンプルコード
+```javascript
+const Calc = require("./calculator.js");
+const calc = new Calc.calculator(); // デフォルトのconfigを使用
+calc.code = 'var test = 1;log("sample code executed"); return 1 + test';
+console.log(calc.value);
+```
+* 適当設計なcsvパーサー用configを使用する場合のサンプルコード
+```javascript
+const csv = require("./csvparser.js");
+csv.code = 'test, aaa,"aaa""aa"\r\nabcd';
+csv.processor = (val, col, row) => {
+    if (col == 0) {
+        if (row !== 0) {
+            process.stdout.write('\r\n');
+        }
+    }
+    process.stdout.write(val + '/');
+};
+csv.value;
+```
+
 # 句点定義
 * 句点として扱う文字列、または句点判定する関数を配列形式で定義します。
 * 句点はpunctuationsとpuncblanksの2種類があります。
