@@ -3546,8 +3546,8 @@ class contexts {
         if (ispunc) {
             this.brackets.prevpunc = this.program.length;
             const end = this.brackets.prevend;
-            const start = this.brackets.prevpunc;
-            if (this.brackets.prevend > 0) {
+            if (end > 0) {
+                const start = this.brackets.prevpunc;
                 const predict = (() => {
                     if (!this.config.predict) {
                         return {confirms:[]};
