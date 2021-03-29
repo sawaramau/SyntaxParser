@@ -3231,6 +3231,7 @@ class predictor {
 class bracketContext {
     constructor(config, contexts) {
         this._contexts = [];
+        this._ignores = [[]];
         this._prevpuncs = [[0]];
         this._latests = [0];
         this._uniques = [-1];
@@ -3302,6 +3303,16 @@ class bracketContext {
     }
 
     setprevpunc(idx, val) {
+        const ignores = this._ignores[idx];
+        for (let i = 0; i < ignores.length; i++) {
+            const start = ignores[i].start;
+            const end = ignores[i].end;
+            if (start <= val) {
+                if (end === undefined || val <= end) {
+                    return;
+                }
+            }
+        }
         if (val === undefined) {
             myconsole.implmenterror('This horizonal value is undefined.');
         }
@@ -3357,6 +3368,8 @@ class bracketContext {
         this._latests.shift();
         const u = this._uniques.shift();
         const ret = this._contexts.shift();
+        this._ignores.shift();
+        this._ignores[0][0].end = horizonal;
         return ret;
     }
 
@@ -3368,6 +3381,8 @@ class bracketContext {
             this._uniques.unshift(v.horizonal);
             this._latests.unshift(v.horizonal);
             this._prevpuncs.unshift([v.horizonal + 1]);
+            this._ignores[0].unshift({start:v.horizonal});
+            this._ignores.unshift([]);
         }
         return i;
     }
@@ -3444,7 +3459,6 @@ class contexts {
     }
 
     read(operator) {
-        const keyword = operator.keyword;
         const context = this.context(operator).sort((l, r) => {
             return l.priority - r.priority;
         });
@@ -3903,7 +3917,7 @@ class contexts {
             //myconsole.implmenterror("Start", f.fullgrammer, "End", this.program[end - 1][0].first);
             const ops = fails.map(v => program[v - start]);
             myconsole.implmenterror("Operator");
-            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid, v.define.grammer])));
+            ops.map(vs => console.log(vs[0].horizonal, vs[0].operator.info, vs.map(v => [v.first, v.left, v.right, v.finished, v.priority, v.invalid, v.define.grammer])));
         }
         return program;
     }
@@ -4264,6 +4278,9 @@ class operator {
         this._keyword = keyword;
         this._row = row;
         this._pos = pos;
+    }
+    get info() {
+        return [this.keyword, this.row, this.pos];
     }
     get keyword() {
         return this._keyword;
