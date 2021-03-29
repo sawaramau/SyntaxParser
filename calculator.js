@@ -3278,6 +3278,12 @@ class bracketContext {
     getprevpunc(idx) {
         const prevpunc = this._prevpuncs[idx];
         let index = prevpunc.length - (this.distance + this.width + 1);
+        const latest = this._latests[idx];
+        if (prevpunc[index] < latest) {
+            // 基本はprevendがこのパターンを除外している。
+            // dependencyなどから直接こちらだけ呼ばれた場合、未解決部分を含まないように一つ手前から考える。
+            index--;
+        }
         let next = prevpunc[index + 1];
         let value = prevpunc[index];
         // 文末表現が右に隣接しているとき左の要素も必要
@@ -3336,9 +3342,10 @@ class bracketContext {
     getprevend(idx) {
         const prevpunc = this._prevpuncs[idx];
         const index = prevpunc.length - (this.distance + 1);
+        const latest = this._latests[idx];
         if (index < this.width) {
             return -1;
-        } else if (prevpunc[index - this.width] < this.latest) {
+        } else if (prevpunc[index - this.width] < latest) {
             return -1;
         }
         return prevpunc[index];
