@@ -133,9 +133,27 @@ class config {
             ),
 
             this.ctrldefine(
-                ["rfor", "(", 1, ";", 1, ";", 1, ")", "{", 0.5, "}"],
-                (argv, meta) => {                  
-                    for (argv[0].value; argv[1].value; argv[2].value) {
+                ["for", "(", 1, ";", 1, ";", 1, ")", "{", 0.5, "}"],
+                (argv, meta, self) => {
+                    argv[0].value;
+                    if (argv[0].meta.stop) {
+                        meta.stop = argv[0].meta.stop;
+                        meta.stopinfo = argv[0].meta.stopinfo;
+                        return;
+                    }
+                    for (; argv[1].value; argv[2].value) {
+                        if (argv[1].meta.stop) {
+                            meta.stop = argv[1].meta.stop;
+                            meta.stopinfo = argv[1].meta.stopinfo;
+                            return;
+                        }
+                        if (argv[2].meta.stop) {
+                            meta.stop = argv[2].meta.stop;
+                            meta.stopinfo = argv[2].meta.stopinfo;
+                            return;
+                        }
+                        const prop = new property(self.rootnamespace);
+                        argv[3].rootnamespace = prop;
                         const val = argv[3].value;
                         if (argv[3].meta.stop) {
                             if (!argv[3].meta.stopinfo.break) {
@@ -143,6 +161,7 @@ class config {
                                 meta.stopinfo = argv[3].meta.stopinfo;
                             } else {
                                 argv[3].meta.stop = false;
+                                argv[3].meta.stopinfo = {};
                                 return;
                             }
                             return val;
@@ -1135,9 +1154,10 @@ class myconsole {
     }
     static object(obj) {
         let text = "{ ";
-        const len = obj.length;
+        const keys = Object.keys(obj);
+        const len = keys.length;
         let i = 0;
-        for (let key of Object.keys(obj)) {
+        for (let key of keys) {
             let tmp = (() => {
                 if ((typeof key) == "string") {
                     return '\u001b[32m' + "'" + key + "'" + '\u001b[0m';
@@ -2760,6 +2780,9 @@ class interpretation {
     }
 
     get horizonal() {
+        if (this._horizonal === undefined) {
+            return this._karihorizonal;
+        }
         return this._horizonal;
     }
     get vertical() {
@@ -2771,6 +2794,9 @@ class interpretation {
             myconsole.implmenterror("horizonal index is rewritten");
         }
         this._horizonal = val;
+    }
+    set karihorizonal(val) {
+        this._karihorizonal = val;
     }
     set vertical(val) {
         if (this._vertical !== undefined) {
@@ -3274,7 +3300,22 @@ class bracketContext {
     }
 
     get prevpunc() {
-        return this.getprevpunc(0);
+        const ret = this.getprevpunc(0);
+        return ret;
+    }
+    getnextpunc(idx, index) {
+        const prevpunc = this._prevpuncs[idx];
+        const ignores = this._ignores[idx];
+        const val = prevpunc[index];
+        for(let i = 0; i < ignores.length; i++) {
+            // ignoresは昇順だか降順に並んでいるはずなので、本当は二分探索が丸い。
+            const start = ignores[i].start;
+            const end = ignores[i].end;
+            if (start <= val && val <= end) {
+                return end;
+            }
+        }
+        return val;
     }
     getprevpunc(idx) {
         const prevpunc = this._prevpuncs[idx];
@@ -3289,7 +3330,7 @@ class bracketContext {
         let value = prevpunc[index];
         // 文末表現が右に隣接しているとき左の要素も必要
         while (index > 0) {
-            if (next - value > 1) {
+            if (next - this.getnextpunc(idx, index) > 1) {
                 const range = this.contexts.program.filter((v, i) => (value <= i && i < next - 1));
                 if (
                     range.find(v => v.find(v => v.define.order != module.exports.join.orders.order.nojoin))
@@ -3368,7 +3409,8 @@ class bracketContext {
     get length() {
         return this._contexts.length;
     }
-    shift(horizonal) {
+    shift() {
+        // shiftするタイミング次第では末尾のcontext自体にhorizonalが設定されていないので、
         if (this._contexts.length == 0) {
             return;
         }
@@ -3377,7 +3419,7 @@ class bracketContext {
         const u = this._uniques.shift();
         const ret = this._contexts.shift();
         this._ignores.shift();
-        this._ignores[0][0].end = horizonal;
+        this._ignores[0][0].end = ret.horizonal + 1;
         return ret;
     }
 
@@ -3386,6 +3428,7 @@ class bracketContext {
         for (i = 0; i < args.length; i++) {
             const v = args[args.length - i - 1];
             this._contexts.unshift(v);
+            this.prevpunc = v.horizonal;
             this._uniques.unshift(v.horizonal);
             this._latests.unshift(v.horizonal);
             this._prevpuncs.unshift([v.horizonal + 1]);
@@ -3466,6 +3509,13 @@ class contexts {
         return prd;
     }
 
+    get operators() {
+        if (this._operators === undefined) {
+            this._operators = [];
+        }
+        return this._operators;
+    }
+
     read(operator) {
         const context = this.context(operator).sort((l, r) => {
             return l.priority - r.priority;
@@ -3488,15 +3538,16 @@ class contexts {
             bracket.check(context[0].starter);
             if (bracket.contexts().count === 0) {
                 // 閉じる事が確定しているならば閉じる。（閉じていないと逐次処理側で事故る）
-                this.brackets.shift(this.program.length);
+                this.brackets.shift();
             }
         }
         this.program.push(context);
+        this.operators.push(operator);
         if (ispunc) {
             this.brackets.prevpunc = this.program.length;
+            const end = this.brackets.prevend;
+            const start = this.brackets.prevpunc;
             if (this.brackets.prevend > 0) {
-                const end = this.brackets.prevend;
-                const start = this.brackets.prevpunc;
                 const predict = (() => {
                     if (!this.config.predict) {
                         return {confirms:[]};
@@ -3960,10 +4011,10 @@ class contexts {
             }, []);
             myconsole.implmenterror("(mintrees)Incomprehensible operators exist", fails);
             const ops = fails.map(v => program[v - start]);
-            myconsole.implmenterror([start, end]);
+            myconsole.implmenterror([start, end], this.operators[start].info, this.operators[end-1].info);
             myconsole.implmenterror("Operator");
             //ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.first, v.define.left, v.define.right, v.priority, v.invalid, v.vertical])));
-            ops.map(vs => console.log(vs[0].horizonal, vs.map(v => [v.orggrammer, v.operator.row, v.operator.pos])));
+            ops.map(vs => console.log(vs[0].horizonal, vs[0].operator.info, vs.map(v => [v.orggrammer])));
 
             throw('aaaa');
         }
@@ -3981,7 +4032,7 @@ class contexts {
             end = this.program.length;
             if (start == 0) {
                 while (this.brackets.length) {
-                    this.brackets.shift(this.program.length); // 始点も終点も未定義で呼ばれる時は末尾なので、囲み文字は閉じておく
+                    this.brackets.shift(); // 始点も終点も未定義で呼ばれる時は末尾なので、囲み文字は閉じておく
                 }
                 const prevpunc = this.brackets.prevpunc;
                 const dep = this.dependency(prevpunc, end);
@@ -4230,6 +4281,7 @@ class contexts {
                 })();
                 this.brackets.at(index).context = nexters.filter((op) => {
                     op.operator = operator;
+                    op.karihorizonal = this.program.length;
                     if (op) {
                         if (op.define.left == 0.5 && length < 2) {
                             if (length === 0) {
@@ -4262,7 +4314,7 @@ class contexts {
             return [];
         }
         while (i) {
-            this.brackets.shift(this.program.length);
+            this.brackets.shift();
             i--;
         }
         const ret = this.brackets.at(0);
@@ -4288,7 +4340,11 @@ class operator {
         this._pos = pos;
     }
     get info() {
-        return [this.keyword, this.row, this.pos];
+        return {
+            operator: this.keyword,
+            row: this.row,
+            col: this.pos
+        };
     }
     get keyword() {
         return this._keyword;
