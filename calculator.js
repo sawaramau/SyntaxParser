@@ -2746,7 +2746,7 @@ class interpretation {
         if (meta.stop) {
             this.meta.stop = meta.stop;
             this.meta.stopinfo = meta.stopinfo;
-            return;
+            return this._oldvalue;
         }
         return this._oldvalue;
     }
@@ -4503,7 +4503,6 @@ class ops {
             const argv = args;
             if (hooks && hooks.alternative) {
                 meta.retValue = hooks.alternative(argv, meta, self);
-                //meta.rootnamespace = namespace;
                 return meta.retValue;
             }
             for (let arg of argv) {
@@ -4517,7 +4516,6 @@ class ops {
                     break;
                 }
             }
-            //meta.rootnamespace = namespace;
             meta.retValue = retValue;
             return retValue;
         };
