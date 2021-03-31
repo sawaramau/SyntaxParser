@@ -4795,7 +4795,6 @@ class myArray {
 
     at(index, ref) {
         const ret = {};
-        console.log('=======', index, this.length, this.constant);
         if (index < 0 || !Number.isInteger(index)) {
             ret.error = true;
             ret.errmsg = 'Index ' + index + ' is invalid.';
