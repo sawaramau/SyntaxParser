@@ -3455,8 +3455,7 @@ class bracketContext {
         const ret = this._contexts.shift();
         this._ignores.shift();
         this._ignores[0][0].end = ret.horizonal + 1;
-        const a = ret.starter.horizonal;
-        this.prevpunc = a;
+        this.prevpunc = ret.starter.horizonal;
         return ret;
     }
 
