@@ -666,6 +666,9 @@ class config {
                             });
                         }
                         const arr = val;
+                        if (arr instanceof myArray) {
+                            return argv[1].value.map(v => arr.at(v).value);
+                        }
                         return argv[1].value.map(v => arr[v]);
                     },
                     "[@]"
@@ -676,7 +679,11 @@ class config {
                     this.join.order.left,
                     (argv, meta) => {
                         const key = argv[1].value;
-                        return argv[0].value.map(v => v.value[key]);
+                        const arr = argv[0].value;
+                        if (arr instanceof myArray) {
+                            return arr.atArray(key);
+                        }
+                        return arr.map(v => v.value[key]);
                     },
                     "{@}"
                 ),
@@ -688,6 +695,9 @@ class config {
                         argv[1].value;
                         const key = argv[1].name;
                         const arr = argv[0].value;
+                        if (arr instanceof myArray) {
+                            return arr.atArray(key);
+                        }
                         return arr.map(v => v.value[key]);
                     },
                     "{@}"
@@ -711,17 +721,26 @@ class config {
                 this.opdefine(
                     [1, "[", 1, "]"],
                     this.join.order.left,
-                    (argv, meta) => {
+                    (argv, meta, self) => {
                         const val = argv[0].value;
                         if (val instanceof property) {
                             const property = val
                             argv[1].property = property;
+                            if (meta.set) {
+                                argv[1].meta.set = meta.set;
+                            }
                             argv[1].value;
                             const name = argv[1].name;
                             meta.ref = property.resolve(name);
                             return meta.ref.value;
                         } else if (val instanceof Array) {
                             return val[argv[1].value];
+                        } else if (val instanceof myArray) {
+                            const index = argv[1].value;
+                            if (meta.set) {
+                                return meta.set(index, val).value;
+                            }
+                            return val.at(argv[1].value).value;
                         }
                     },
                     "[]"
@@ -785,14 +804,21 @@ class config {
                     ["[", 0.5, "]"],
                     this.join.order.left,
                     (argv, meta) => {
+                        const array = new myArray();
                         if (argv[0].meta.dummy) {
-                            return [];
+                            return array;
                         }
                         const val = argv[0].value;
                         if (val instanceof internalArray) {
-                            return [].concat(val);
+                            val.map((v, i) => {
+                                const valu = new value({ value: v }, false);
+                                array.at(i, valu);
+                            });
+                        } else {
+                            const valu = new value({value:val}, false);
+                            array.at(0, valu);
                         }
-                        return [argv[0].value];
+                        return array;
                     },
                     "[]"
                 ),
@@ -1846,7 +1872,6 @@ class opdefine {
                     return true;
                 }
             } else {
-                
                 if (typeof key == "function") {
                     const hit = key(text, ptr) && ((futertext === undefined) || key(futertext, ptr));
                     if (hit) {
@@ -3307,8 +3332,8 @@ class bracketContext {
         const prevpunc = this._prevpuncs[idx];
         const ignores = this._ignores[idx];
         const val = prevpunc[index];
+
         for(let i = 0; i < ignores.length; i++) {
-            // ignoresは昇順だか降順に並んでいるはずなので、本当は二分探索が丸い。
             const start = ignores[i].start;
             const end = ignores[i].end;
             if (start <= val && val <= end) {
@@ -3517,10 +3542,20 @@ class contexts {
     }
 
     read(operator) {
+        if (this.tmptime === undefined) {
+            this.tmptime = {};
+            this.tmptime.context = 0;
+            this.tmptime.bracket = 0;
+            this.tmptime.predict = 0;
+            this.tmptime.dependency = 0;
+            this.tmptime.notreat = 0;
+        }
+        const sTime = performance.now();
         const context = this.context(operator).sort((l, r) => {
             return l.priority - r.priority;
         });
-        
+        const cTime = performance.now();
+        this.tmptime.context += cTime - sTime;
         let ispunc = true;
         let mayblank = false;
         context.map((interpretation, index) => {
@@ -3541,6 +3576,8 @@ class contexts {
                 this.brackets.shift();
             }
         }
+        const bTime = performance.now();
+        this.tmptime.bracket += bTime - cTime;
         this.program.push(context);
         this.operators.push(operator);
         if (ispunc) {
@@ -3566,6 +3603,8 @@ class contexts {
                         this.program[node.horizonal] = this.program[node.horizonal].filter(v => v.vertical == node.vertical);
                         this.program[node.horizonal][0].context = this.program[node.horizonal][0].context.filter(v => v.vertical == node.vertical);
                     });
+                    const pTime = performance.now();
+                    this.tmptime.predict += pTime - bTime;
                 } else {
                     if (this.config.predict) {
                         this.predictor = predict;
@@ -3574,7 +3613,12 @@ class contexts {
                     dep.map(root => {
                         this.confirm(root, predict, end);
                     });
+                    const dTime = performance.now();
+                    this.tmptime.dependency += dTime - bTime;
                 }
+            } else {
+                const nTime = performance.now();
+                this.tmptime.notreat += nTime - bTime;
             }
         }
     }
@@ -4691,7 +4735,77 @@ class value {
     }
 }
 
+class myArray {
+    constructor(len, constant = true) {
+        if (len === undefined) {
+            constant = false;
+            len = 0;
+        }
+        this._constant = constant;
+        this._array = new Array(len);
+        this._length = len;
+    }
+    get constant() {
+        return this._constant;
+    }
+    get array() {
+        return this._array.map(v => v.value);
+    }
+    get length () {
+        return this._length;
+    }
 
+    get value() {
+        return this._array.map(v => v);
+    }
+
+    filter(func) {
+        const array = new myArray();
+
+    }
+
+    map(func) {
+        const array = new myArray();
+        this._array.map((v, i, arr, thisArg) => {
+            const val = new value({value:v.value, type:v.type}, v.constant, v.typename, v.setter);
+            array.at(i, func(val, i, arr, thisArg));
+        });
+        return array;
+    }
+
+    atArray(prop) {
+        return this.map(v => v.value.value[prop]);
+    }
+
+    set(index, v) {
+        const val = new value({ value: v.value, type: v.type }, v.constant, v.typename, v.setter);
+        return this.at(index, val);
+    }
+
+    at(index, ref) {
+        const ret = {};
+        console.log('=======', index, this.length, this.constant);
+        if (index < 0 || !Number.isInteger(index)) {
+            ret.error = true;
+            ret.errmsg = 'Index ' + index + ' is invalid.';
+            return ret;
+        }
+        if (index >= this.length) {
+            if (this.constant) {
+                ret.error = true;
+                ret.errmsg = 'Index ' + index + ' is out of range. This array\'s length is ' + this.length;
+                return ret;
+            }
+            this._length = index + 1;
+        }
+        if (ref !== undefined) {
+            this._array[index] = ref;
+        }
+        ret.ref = this._array[index];
+        ret.value = this.array[index];
+        return ret;
+    }
+}
 
 class property {
     constructor(parent, global = true) {
