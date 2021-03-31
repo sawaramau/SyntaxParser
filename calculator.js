@@ -3058,6 +3058,15 @@ class context {
     set offset(val) {
         this._offset = val;
     }
+    get starter() {
+        for (let i = 0; i < this.length; i++) {
+            if (this.context[i] && !this.context[i].invalid) {
+                return this.context[i].starter;
+            }
+        }
+        return undefined;
+    }
+
     get horizonal() {
         for (let i = 0; i < this.length; i++) {
             if (this.context[i] && !this.context[i].invalid) {
@@ -3324,6 +3333,10 @@ class bracketContext {
         }
     }
 
+    info(msg, ret) {
+        console.log(msg, this._prevpuncs, this._uniques, this._ignores, ret, this.prevend);
+    }
+
     get prevpunc() {
         const ret = this.getprevpunc(0);
         return ret;
@@ -3369,7 +3382,6 @@ class bracketContext {
             next = prevpunc[index + 1];
         }
         if (index < 0) {
-            //myconsole.implmenterror('prevpunc calculation failed.', index, prevpunc, this._prevpuncs[1]);
             value = prevpunc[0];
         }
         return value;
@@ -3427,7 +3439,6 @@ class bracketContext {
             this._contexts[index] = value;
             this._latests[index] = horizonal;
             this._prevpuncs[index] = [horizonal + 1];
-            //this.setprevpunc(index, horizonal);
         }
         return this._contexts[index];
     }
@@ -3435,7 +3446,6 @@ class bracketContext {
         return this._contexts.length;
     }
     shift() {
-        // shiftするタイミング次第では末尾のcontext自体にhorizonalが設定されていないので、
         if (this._contexts.length == 0) {
             return;
         }
@@ -3445,6 +3455,8 @@ class bracketContext {
         const ret = this._contexts.shift();
         this._ignores.shift();
         this._ignores[0][0].end = ret.horizonal + 1;
+        const a = ret.starter.horizonal;
+        this.prevpunc = a;
         return ret;
     }
 
@@ -3453,7 +3465,7 @@ class bracketContext {
         for (i = 0; i < args.length; i++) {
             const v = args[args.length - i - 1];
             this._contexts.unshift(v);
-            this.prevpunc = v.horizonal;
+            //this.prevpunc = v.horizonal;
             this._uniques.unshift(v.horizonal);
             this._latests.unshift(v.horizonal);
             this._prevpuncs.unshift([v.horizonal + 1]);
@@ -5075,6 +5087,7 @@ class calculator {
         this.memorylog('read text');
         words.map(word => this.result.read(word));
         this.memorylog('read contexts');
+        console.log(this.result.tmptime);
         return this.result;
     }
 }
