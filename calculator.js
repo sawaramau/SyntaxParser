@@ -4693,6 +4693,16 @@ class ops {
     }
 }
 
+class struct{
+    constructor(name, setter){
+
+    }
+    // cast関数の定義
+    // 相手の型名称と、その値をどう自身と同じ型として変換するかの2値
+    // cast関数の呼び出し
+    // 型名と値を持つvalueインスタンスを受け取る？
+}
+
 class value {
     constructor(val, constant, typename = 'object', setter = undefined) {
         this.setter = setter;
@@ -4747,7 +4757,7 @@ class value {
 }
 
 class myArray {
-    constructor(len, constant = true) {
+    constructor(len, constant = true, setter = undefined) {
         if (len === undefined) {
             constant = false;
             len = 0;
@@ -4755,6 +4765,7 @@ class myArray {
         this._constant = constant;
         this._array = new Array(len);
         this._length = len;
+        this._setter = setter;
     }
     get constant() {
         return this._constant;
@@ -4777,23 +4788,17 @@ class myArray {
 
     map(func) {
         const array = new myArray();
-        this._array.map((v, i, arr, thisArg) => {
-            const val = new value({value:v.value, type:v.type}, v.constant, v.typename, v.setter);
-            array.at(i, func(val, i, arr, thisArg));
+        this.array.map((v, i, arr, thisArg) => {
+            array.at(i, func(v, i, arr, thisArg));
         });
         return array;
     }
 
     atArray(prop) {
-        return this.map(v => v.value.value[prop]);
+        return this.map(v => v.value.resolve(prop).value);
     }
 
-    set(index, v) {
-        const val = new value({ value: v.value, type: v.type }, v.constant, v.typename, v.setter);
-        return this.at(index, val);
-    }
-
-    at(index, ref) {
+    set(index, val) {
         const ret = {};
         if (index < 0 || !Number.isInteger(index)) {
             ret.error = true;
@@ -4808,26 +4813,110 @@ class myArray {
             }
             this._length = index + 1;
         }
-        if (ref !== undefined) {
-            this._array[index] = ref;
+        if (val !== undefined) {
+            if (this._array[index] === undefined) {
+                this._array[index] = new value(val, false, 'array element', this._setter);
+            } else {
+                this._array[index].value = val;
+            }
         }
         ret.ref = this._array[index];
         ret.value = this.array[index];
         return ret;
+    }
+
+    at(index, v) {
+        const ret = {};
+        if (index < 0 || !Number.isInteger(index)) {
+            ret.error = true;
+            ret.errmsg = 'Index ' + index + ' is invalid.';
+            return ret;
+        }
+        if (index >= this.length) {
+            if (this.constant) {
+                ret.error = true;
+                ret.errmsg = 'Index ' + index + ' is out of range. This array\'s length is ' + this.length;
+                return ret;
+            }
+            this._length = index + 1;
+        }
+        if (v === undefined) {
+            ret.ref = this._array[index];
+            ret.value = this.array[index];
+            return ret;
+        }
+        return this.set(index, { value: v });
+    }
+}
+
+class keyinfo {
+    constructor(keys) {
+        if (keys instanceof Object) {
+            this._keys = keys;
+        } else {
+            const name = typeof keys;
+            this._keys = {};
+            this._keys[name] = keys;
+        }
+    }
+    get keys() {
+        return this._keys;
+    }
+    compare(other) {
+        if (!(other instanceof keyinfo)) {
+            return false;
+        }
+        return this.instancecompare(this, other);
+    }
+    instancecompare(left, right) {
+        const ltype = typeof left;
+        const rtype = typeof right;
+        if (ltype !== rtype) {
+            return false;
+        }
+        if (left instanceof Object) {
+            const lkeys = Object.keys(left);
+            const rkeys = Object.keys(right);
+            if (lkeys.length !== rkeys.length) {
+                return false;
+            }
+            const set = new Set(lkeys.concat(rkeys));
+            if (set.size !== lkeys.length) {
+                return false;
+            }
+            for (let key of lkeys) {
+                if(!this.instancecompare(left[key], right[key])) {
+                    return false;
+                };
+            }
+            return true;
+        }
+        if (left instanceof Array) {
+            if (left.length !== right.length) {
+                return false;
+            }
+            for (let i = 0; left.length; i++) {
+                if (!this.instancecompare(left[i], right[i])) {
+                    return false;
+                };
+            }
+            return true;
+        }
+        return left == right;
     }
 }
 
 class property {
     constructor(parent, global = true) {
         this._parent = parent;
-        this._local = {};
+        this._map = new Map();
         this.reserved = {};
         this.nodeclaration = global; // trueのとき、宣言無しのsetはグローバル領域で覚える
         this._using = [];
     }
 
     toString  () {
-        return this._local;
+        return this._map;
     }
 
     set usingNamespace(val) {
@@ -4847,8 +4936,8 @@ class property {
 
     get _value() {
         const value = {};
-        for (let key of Object.keys(this._local)) {
-            value[key] = this._local[key].value;
+        for (let key of this._map.keys()) {
+            value[key] = this._map.get(key).value;
         }
         return value;
     }
@@ -4871,7 +4960,7 @@ class property {
     }
 
     include(name, global = false) {
-        if (name in this._local) {
+        if (this._map.has(name)) {
             return true;
         }
         if (this.includeUsing(name)) {
@@ -4883,21 +4972,21 @@ class property {
         return this.parent.include(name, global);
     }
     declare(name, val, constant, typename, setter) {
-        if (name in this._local) {
+        if (this._map.has(name)) {
             myconsole.programerror(name, "is already declared.");
             return false;
         } else {
-            this._local[name] = new value(val, constant, typename, setter);
+            this._map.set(name, new value(val, constant, typename, setter));
             return true;
         }
     }
 
     set(name, val, strict = false) {
-        if (name in this._local) {
-            this._local[name].value = val;
+        if (this._map.has(name)) {
+            this._map.get(name).value = val;
         } else if (!strict) {
             if (!this.nodeclaration || !this.parent) {
-                this._local[name] = new value(val, false);
+                this._map.set(name, new value(val, false));
             } else {
                 this.parent.set(name, val);
             }
@@ -4917,12 +5006,12 @@ class property {
     }
 
     resolve(name) {
-        if (name in this._local) {
-            return this._local[name];
+        if (this._map.has(name)) {
+            return this._map.get(name);
         }
         const using = this.includeUsing(name);
         if (using) {
-            return using._local[name];
+            return using._map.get(name);
         }
         if (this.parent instanceof property) {
             return this.parent.resolve(name);
@@ -5102,5 +5191,6 @@ module.exports = {
     ctrldefine,
     typeset,
     property,
+    myArray,
     calculator,
 };
