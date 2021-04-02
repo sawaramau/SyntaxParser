@@ -4906,10 +4906,51 @@ class keyinfo {
     }
 }
 
+class myMap {
+    constructor() {
+        this._map = new Map();
+    }
+    keys() {
+        return this._map.keys();
+    }
+    set(name, value) {
+        if (!(name instanceof keyinfo)) {
+            name = new keyinfo(name);
+        }
+        for (let key of this.keys()) {
+            if (key.compare(name)) {
+                return this._map.set(key, value);
+            }
+        }
+        return this._map.set(name, value);
+    }
+    get(name) {
+        if (!(name instanceof keyinfo)) {
+            name = new keyinfo(name);
+        }
+        for (let key of this.keys()) {
+            if (key.compare(name)) {
+                return this._map.get(key);
+            }
+        }
+    }
+    has(name) {
+        if (!(name instanceof keyinfo)) {
+            name = new keyinfo(name);
+        }
+        for (let key of this.keys()) {
+            if (key.compare(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
 class property {
     constructor(parent, global = true) {
         this._parent = parent;
-        this._map = new Map();
+        this._map = new myMap();
         this.reserved = {};
         this.nodeclaration = global; // trueのとき、宣言無しのsetはグローバル領域で覚える
         this._using = [];
