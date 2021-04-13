@@ -12,7 +12,7 @@ class config {
         this.ctrldefine = (grammer, formula, groupid) => {
             return new ctrldefine(grammer, formula, groupid);
         };
-        this.reserved = reserved || ['false', 'true', 'undefined', 'return', 'var', 'break', 'for'];
+        this.reserved = reserved || ['false', 'true', 'undefined', 'return', 'var', 'break', 'for', 'drop', 'attribute'];
 
         this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
         this.punctuations = punctuations || [';']; // 文末として解釈される文字群
@@ -102,6 +102,7 @@ class config {
             this.ctrldefine(
                 [1, "final", "{", 1, "}"],
                 (argv) => {
+
                     const val = argv[0].value;
                     const type = argv[0].type;
                     if (argv[0].meta.success) {
@@ -199,14 +200,15 @@ class config {
                     this.join.order.left,
                     (argv, meta, self) => {
                         argv[0].meta.declare = (name, value = 0) => {
-                            const success = self.rootnamespace.declare(name, value, false, 'object');
-                            if (!success) {
+                            const ret = self.rootnamespace.declare(name, value, false, 'object');
+                            if (ret.error) {
                                 argv[0].meta.stop = true;
                                 argv[0].meta.stopinfo = {
                                     throw: true,
                                     name: 'throw',
                                 };
                             }
+                            return ret;
                         };
                         argv[0].meta.deftypename = 'object';
                         argv[0].value;
@@ -219,31 +221,14 @@ class config {
                     ["drop", 1],
                     this.join.order.left,
                     (argv, meta, self) => {
-                        argv[0].meta.declare = (name, value = 0) => {
-                            self.rootnamespace.declare(name, value, false, 'drop',
+                        argv[0].meta.declare = (name, valu = 0) => {
+                            return self.rootnamespace.declare(name, valu, false, 'drop',
                             // setter
                             (self, newValue) => {
-                                const str2num = {
-                                    '火': 0,
-                                    '水': 1,
-                                    '木': 2,
-                                    '光': 3,
-                                    '闇': 4,
-                                    '回復': 5,
-                                    '回': 5,
-                                    'お邪魔': 6,
-                                    '邪': 6,
-                                    '毒': 7,
-                                    '猛毒': 8,
-                                    '猛': 8,
-                                    '爆弾': 9,
-                                    '爆': 9,
-                                };
-                                if (newValue.value in str2num) {
-                                    self.newValue = str2num[newValue.value];
-                                } else if (0 <= newValue.value && newValue.value < 10) {
+                                if (0 <= newValue.value && newValue.value < 10) {
                                     self.newValue = newValue.value;
                                 } else {
+                                    console.log('newValue is', newValue, (newValue instanceof value));
                                     self.newValue = 0;
                                     return {
                                         error : 1,
@@ -251,6 +236,26 @@ class config {
                                     };
                                 }
                                 return {error : 0};
+                            }, {
+                                'string': (val) => {
+                                    const str2num = {
+                                        '火': 0,
+                                        '水': 1,
+                                        '木': 2,
+                                        '光': 3,
+                                        '闇': 4,
+                                        '回復': 5,
+                                        '回': 5,
+                                        'お邪魔': 6,
+                                        '邪': 6,
+                                        '毒': 7,
+                                        '猛毒': 8,
+                                        '猛': 8,
+                                        '爆弾': 9,
+                                        '爆': 9,
+                                    };
+                                    return str2num[val];
+                                }
                             })
                         };
                         argv[0].meta.deftypename = 'drop';
@@ -264,7 +269,7 @@ class config {
                     this.join.order.left,
                     (argv, meta, self) => {
                         argv[0].meta.declare = (name, value = 0) => {
-                            self.rootnamespace.declare(name, value, false, 'drops', 
+                            return self.rootnamespace.declare(name, value, false, 'drops', 
                             // setter
                             (self, newValue) => {
                                 if (newValue.typename == 'drop') {
@@ -286,7 +291,7 @@ class config {
                     this.join.order.left,
                     (argv, meta, self) => {
                         argv[0].meta.declare = (name, value = 0) => {
-                            self.rootnamespace.declare(name, value, false, 'attribute')
+                            return self.rootnamespace.declare(name, value, false, 'attribute')
                         };
                         argv[0].meta.deftypename = 'attribute';
                         argv[0].value;
@@ -337,10 +342,10 @@ class config {
                     (argv, meta, self) => {
                         if (meta.declare) {
                             argv[0].meta.declare = (name, value) => {
-                                meta.declare(name, value);
+                                return meta.declare(name, value);
                             }
                             argv[1].meta.declare = (name, value) => {
-                                meta.declare(name, value);
+                                return meta.declare(name, value);
                             }
                         }
                         const val = argv[0].value;
@@ -360,7 +365,7 @@ class config {
                     (argv, meta, self) => {
                         if (meta.declare) {
                             argv[0].meta.declare = (name, value) => {
-                                meta.declare(name, value);
+                                return meta.declare(name, value);
                             }
                         }
                         const val = argv[0].value;
@@ -381,24 +386,18 @@ class config {
                     this.join.order.right,
                     (argv, meta, self) => {
                         argv[1].meta.deftypename = meta.deftypename;
-                        const val = argv[1].value;
-                        const value = {
-                            value: val,
-                            typename: argv[1].typename
-                        };
+                        argv[1].value;
+                        const value = argv[1].meta.ref;
+                        argv[0].value;
                         if (meta.declare) {
-                            argv[0].meta.declare = (name) => {
-                                meta.declare(name, value);
-                            }
+                            return meta.declare(argv[0].meta.name, value).value;
                         } else {
-                            argv[0].meta.set = (name, property) => {
-                                if (property) {
-                                    return property.set(name, value);
-                                }
-                                return argv[0].rootnamespace.set(name, value);
+                            if (argv[0].property) {
+                                return argv[0].property.set(argv[0].meta.name, value).value;
+                            } else {
+                                return argv[0].rootnamespace.set(argv[0].meta.name, value).value;
                             }
                         }
-                        return argv[0].value;
                     },
                     "{}"
                 ),
@@ -426,10 +425,8 @@ class config {
                         const value = {
                             value: argv[1].value,
                         };
-                        argv[0].meta.declare = (name) => {
-                            property.declare(name, value, false);
-                        }
                         argv[0].value;
+                        property.declare(argv[0].meta.name, value, false);
                         return undefined;
                     },
                     ":"
@@ -855,7 +852,7 @@ class config {
                             meta.declare(name);
                         }
                         if (meta.set) {
-                            meta.set(name);
+                            //meta.set(name);
                         }
                         meta.name = name;
                         meta.ref = property.resolve(name);
@@ -901,10 +898,10 @@ class config {
                         return false;
                     },
                     this.join.order.left,
-                    (val) => {
-                        return parseInt(val, 16);
+                    (val, meta, self) => {
+                        return parseInt(self.operator.keyword, 16);
                     },
-                    "hex"
+                    "number"
                 ),
                 this.opdefine(
                     (val) => {
@@ -918,7 +915,7 @@ class config {
                     (val, meta, self) => {
                         return Number(self.operator.keyword);
                     },
-                    "dec"
+                    "number"
                 ),
                 this.opdefine(
                     (val, ptr) => {
@@ -926,7 +923,7 @@ class config {
                         return val.match(varreg);
                     }, 
                     this.join.order.left,
-                    (val, meta, self) => {
+                    (argv, meta, self) => {
 
                         const property = meta.property || self.rootnamespace;
                         const name = self.operator.keyword;
@@ -934,7 +931,7 @@ class config {
                             meta.declare(name);
                         }
                         if (meta.set) {
-                            meta.set(name);
+                            //meta.set(name);
                         }
                         meta.name = name;
                         meta.ref = property.resolve(name);
@@ -993,8 +990,8 @@ class config {
                         return false;
                     },
                     this.join.order.left,
-                    (val) => {
-                        let org = val.slice(1, val.length - 1);
+                    (argv, meta, self) => {
+                        let org = self.operator.keyword.slice(1, self.operator.keyword.length - 1);
                         const escapes = [
                             ["r", "\r"],
                             ["\\", "\\"],
@@ -1604,14 +1601,14 @@ class order {
         let left;
         let right;
 
-        this.enum = new myenum({
+        this.join = new myenum({
             nojoin,
             left,
             right,
         });
     }
     get order() {
-        return this.enum.enum;
+        return this.join.enum;
     }
 }
 
@@ -1746,7 +1743,7 @@ class ctrldefine {
 
 // 命令定義用クラス
 class opdefine {
-    constructor(grammer, order, formula, groupid, gen, meta) {
+    constructor(grammer, order, formula, groupid, gen) {
         if (grammer === undefined) {
             this.grammer = ['undefined'];
             this.formula = () => {
@@ -1758,7 +1755,7 @@ class opdefine {
         this.order = order;
         this.formula = formula;
         this.groupid = groupid;
-        this.meta = meta; // free space. meta data
+        //this.meta = meta; // free space. meta data
         this.gen = gen;
         //this.root = root;
         //this._inouts = inouts;
@@ -1908,7 +1905,7 @@ class opdefine {
         const def = new opdefine(grammer, this.order, (argv, meta, self) => {
             //self.operator = keyword;
             return this.formula(argv, meta, self);
-        }, this.groupid, this.gen, this.meta);
+        }, this.groupid, this.gen); //, this.meta);
         def.priority = this.priority;
         def.punctuation = this.punctuation;
         return def;
@@ -1923,7 +1920,7 @@ class opdefine {
             const def = new opdefine([keyword], this.order, (argv, meta, self) => {
                 //self.operator = keyword;
                 return this.formula(keyword, meta, self);
-            }, this.groupid, this.gen, this.meta);
+            }, this.groupid, this.gen);//, this.meta);
             def.priority = this.priority;
             def.punctuation = this.punctuation;
             const int = new interpretation(def);
@@ -1931,7 +1928,7 @@ class opdefine {
         } else {
             const def = new opdefine([keyword], this.order, () => {
                 return undefined;
-            }, this.groupid, this.gen, this.meta);
+            }, this.groupid, this.gen);//, this.meta);
             def.priority = this.priority;
             def.punctuation = this.punctuation;
             const int = new interpretation(def);
@@ -2772,12 +2769,28 @@ class interpretation {
     }
 
     get _value() {
-        this.args.map(arg => {
+        return this.__value;
+    }
+
+    get __value() {
+        this.args.map((arg, idx) => {
             arg.parent = this;
             arg.meta.stop = false;
+            Object.defineProperty(arg, '_value', {
+                get: function () {
+                    const val = arg.__value;
+                    //console.log(this.horizonal, 'execute', idx);
+                    return val;
+                },
+                configurable: true
+            });
         });
         this._executed = true;
+        delete this.meta.ref;
         this._oldvalue = this.define.formula(this.args, this.meta, this);
+        if (this.meta.ref === undefined) {
+            this.meta.ref = new value({value:this._oldvalue, type: this.define.groupid});
+        }
         const meta = this.args.reduce((acc, arg) => {
             if (acc.stop) {
                 return acc;
@@ -4704,11 +4717,27 @@ class struct{
 }
 
 class value {
-    constructor(val, constant, typename = 'object', setter = undefined) {
+    constructor(val, constant, typename, setter, cast) {
+        this._cast = cast;
         this.setter = setter;
         this.value = val;
         this._constant = constant;
-        this.typename = typename;
+    }
+
+    get casts() {
+        if (this._cast === undefined) {
+            this._cast = {};
+        }
+        return this._cast;
+    }
+
+    cast(val) {
+        const cast = this.casts;
+        if((val.type in cast)) {
+            const v = cast[val.type](val.value);
+            return new value({ value: v, type: this.type }, true, undefined, this.setter, cast);
+        }
+        return val;
     }
 
     get setter() {
@@ -4716,13 +4745,6 @@ class value {
     }
     set setter(val){
         this._setter = val;
-    }
-
-    get typename() {
-        return this._typename;
-    }
-    set typename(val) {
-        this._typename = val;
     }
 
     get constant() {
@@ -4740,7 +4762,7 @@ class value {
         if (this.constant) {
             myconsole.programerror("This is constant.");
         } else if (this.setter) {
-            this.setter(this, val);
+            this.setter(this, this.cast(val));
         } else {
             this.newValue = val.value;
             this.newType = val.type;
@@ -4877,6 +4899,9 @@ class keyinfo {
         if (left instanceof Object) {
             const lkeys = Object.keys(left);
             const rkeys = Object.keys(right);
+            if (lkeys.myEquals) {
+                return lkeys.myEquals(rkeys);
+            }
             if (lkeys.length !== rkeys.length) {
                 return false;
             }
@@ -5012,34 +5037,42 @@ class property {
         }
         return this.parent.include(name, global);
     }
-    declare(name, val, constant, typename, setter) {
+    declare(name, val, constant, typename, setter, cast) {
+        const result = {};
         if (this._map.has(name)) {
             myconsole.programerror(name, "is already declared.");
-            return false;
+            result.error = true;
+            return result;
         } else {
-            this._map.set(name, new value(val, constant, typename, setter));
-            return true;
+            result.value = new value(val, constant, typename, setter, cast);
+            this._map.set(name, result.value);
+            return result;
         }
     }
 
     set(name, val, strict = false) {
         if (this._map.has(name)) {
+            const result = {};
             this._map.get(name).value = val;
+            result.value = val;
+            return result;
         } else if (!strict) {
             if (!this.nodeclaration || !this.parent) {
-                this._map.set(name, new value(val, false));
+                const result = {};
+                result.value = new value(val, false);
+                this._map.set(name, result.value);
+                return result;
             } else {
-                this.parent.set(name, val);
+                return this.parent.set(name, val);
             }
         } else {
             if (this.parent) {
                 return this.parent.set(name, val);
             } else {
                 myconsole.programerror(name, "is not declared.");
-                return false;
+                return {error: true};
             }
         }
-        return true;
     }
 
     access(name) {
