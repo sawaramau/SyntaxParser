@@ -3,7 +3,7 @@ const performance = require('perf_hooks').performance;
 
 // 演算子の定義など、解析器が必要とする基礎情報をまとめて保持するクラス
 class config {
-    constructor(opdefs, punctuations, puncblanks, hooks, reserved, controls) {
+    constructor(opdefs, punctuations, puncblanks, hooks, reserved, controls, blanks) {
         this.join = module.exports.join.orders;
         this.types = itemtype.types();
         this.opdefine = (grammer, order, formula, groupid, gen) => {
@@ -1024,77 +1024,61 @@ class config {
                     "string"
                 ),
             ],
-            // 空白文字等
-            [
-                this.opdefine(
-                    (val) => {
-                        const varreg = /^[\t ]+$/;
-                        if (val.match(varreg)) {
-                            return true;
-                        }
-                        return false;
-                    },
-                    this.join.order.nojoin,
-                    null,
-                    "space"
-                ),
-                this.opdefine(
-                    (val, ptr) => {
-                        const len = val.length - 1;
-                        if (val == "/") {
-                            return true;
-                        } else if (len < 2) {
-                            return val == '/*';
-                        }
-                        const first = (val[0] + val[1]) == '/*';
-                        const last = ((val[len - 2] + val[len - 1]) == '*/');
-                        if (first) {
-                            return !last;
-                        }
-                        return false;
-                    },
-                    this.join.order.nojoin,
-                    null,
-                    "space"
-                ),
-                this.opdefine(
-                    (val, ptr) => {
-                        if (ptr === undefined) {
-                            return val.slice(0, 2) == '//';
-                        }
-                        const len = val.length - 1;
-                        if (len == 0) {
-                            return val == "/";
-                        }
-                        const first = (val[0] + val[1]) == '//';
-                        if (!first) {
-                            return false;
-                        }
-                        if (ptr.start >= ptr.last) {
-                            return false;
-                        }
-                        
-                        const last = (() => {
-                            if (ptr.slice(0, 1) == '\n') {
-                                return true;
-                            }
-                            if (ptr.last - ptr.start > 1) {
-                                return ptr.slice(0, 2) == '\r\n';
-                            }
-                            return false;
-                        })();
-                        if (first) {
-                            return !last;
-                        }
-                        return false;
-                    },
-                    this.join.order.nojoin,
-                    null,
-                    "space"
-                ),
-            ],
         ];
-        this.ops = new ops(this.opdefs, this.punctuations, this.puncblanks, this.hooks, this.reserved, this.controls);
+        this.blanks = blanks || [
+            (val) => {
+                const varreg = /^[\t ]+$/;
+                if (val.match(varreg)) {
+                    return true;
+                }
+                return false;
+            },
+            (val, ptr) => {
+                const len = val.length - 1;
+                if (val == "/") {
+                    return true;
+                } else if (len < 2) {
+                    return val == '/*';
+                }
+                const first = (val[0] + val[1]) == '/*';
+                const last = ((val[len - 2] + val[len - 1]) == '*/');
+                if (first) {
+                    return !last;
+                }
+                return false;
+            },
+            (val, ptr) => {
+                if (ptr === undefined) {
+                    return val.slice(0, 2) == '//';
+                }
+                const len = val.length - 1;
+                if (len == 0) {
+                    return val == "/";
+                }
+                const first = (val[0] + val[1]) == '//';
+                if (!first) {
+                    return false;
+                }
+                if (ptr.start >= ptr.last) {
+                    return false;
+                }
+
+                const last = (() => {
+                    if (ptr.slice(0, 1) == '\n') {
+                        return true;
+                    }
+                    if (ptr.last - ptr.start > 1) {
+                        return ptr.slice(0, 2) == '\r\n';
+                    }
+                    return false;
+                })();
+                if (first) {
+                    return !last;
+                }
+                return false;
+            },
+        ];
+        this.ops = new ops(this.opdefs, this.punctuations, this.puncblanks, this.hooks, this.reserved, this.controls, this.blanks);
     }
     get predict() {
         if (this._predict === undefined) {
@@ -4614,7 +4598,7 @@ class ops {
         return 2; // 0, 1, 2
     }
 
-    constructor(opdefines, punctuations, puncblanks, hooks, reserved, controls) {
+    constructor(opdefines, punctuations, puncblanks, hooks, reserved, controls, blanks) {
         // opdefines: [               priority
         //    [opdefine, opdefine],     low
         //    [opdefine],                |
@@ -4625,6 +4609,7 @@ class ops {
         this.opdefines = opdefines;
         this.puncblanks = puncblanks || [];
         this.punctuations = punctuations || [];
+        this.blanks = this.puncblanks.concat(blanks || []);
         this._puncs = this.punctuations.concat(this.puncblanks);
         this.solocontrols = controls.map(v => v.solo).filter(v => v !== undefined);
         this.leftcontrols = controls.map(v => v.leftone).filter(v => v !== undefined);
@@ -4642,7 +4627,7 @@ class ops {
         //this.opdefines.unshift(this.leftonly); // priority 2
         //this.opdefines.unshift(this.rightonly); // priority 1
         this.opdefines.unshift(this.bothcontrols.concat(this._puncs.map(v => this.makepunctuations(1, v, 1)))); // priority 0
-        this.opdefines.push(this.puncblanks.map(v => this.makeblank(v)));
+        this.opdefines.push(this.blanks.map(v => this.makeblank(v)));
         
         let priority = 0;
         this.punctuation = (args, meta, self) => {

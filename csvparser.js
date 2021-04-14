@@ -106,7 +106,7 @@ class csvconfig {
                 ),
             ],
         ];
-        this.config = new Calc.config(this.opdefs, this.punctuations, [], this.hooks, [], []);
+        this.config = new Calc.config(this.opdefs, this.punctuations, [], this.hooks, [], [], []);
         this.config.predict = true;
         this.config.width = 50; // 値が歯抜けでないならば、この数字は適当に大きい方が速い
         this.priority = this.config.ops.maxpriority;
