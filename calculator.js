@@ -119,7 +119,7 @@ class config {
                 ["for", "(", 1, ")", "{", 0.5, "}"],
                 (argv, meta) => {
                     for (let i = 0; i < argv[0].value; i++) {
-                        const val = argv[1].value;
+                        const val = argv[1].block;
                         if (argv[1].meta.stop) {
                             if (!argv[1].meta.stopinfo.break) {
                                 meta.stop = argv[1].meta.stop;
@@ -155,7 +155,7 @@ class config {
                         }
                         const prop = new property(self.rootnamespace);
                         argv[3].rootnamespace = prop;
-                        const val = argv[3].value;
+                        const val = argv[3].block;
                         if (argv[3].meta.stop) {
                             if (!argv[3].meta.stopinfo.break) {
                                 meta.stop = argv[3].meta.stop;
@@ -2797,6 +2797,27 @@ class interpretation {
         return this._value;
     }
 
+    get block() {
+        const program = this.allnodes;
+        program.map(v => v._executed = false);
+        const start = program[0].horizonal;
+        let index = 0;
+        program[0].rootnamespace = this.rootnamespace;
+        while (index < program.length) {
+            const horizonal = program[index].horizonal;
+            if (horizonal == this.horizonal) {
+                break;
+            }
+            program[index].val;
+            if (program[index].parent) {
+                index = Math.max(index + 1, program[index].parent.horizonal - start);
+            } else {
+                index++;
+            }
+        }
+        return this.val;
+    }
+
     get index() {
         return this.horizonal - this.offset;
     }
@@ -5114,23 +5135,6 @@ class calculator {
 
     get value() {
         const result = this.result.dependency();
-        const program = result[0].allnodes;
-        program.map(v => v._executed = false);
-        const start = program[0].horizonal;
-        let index = 0;
-        program[0].rootnamespace = this.namespace;
-        while (index < program.length) {
-            const horizonal = program[index].horizonal;
-            if (horizonal == result[0].horizonal) {
-                break;
-            }
-            program[index].val;
-            if (program[index].parent) {
-                index = Math.max(index + 1, program[index].parent.horizonal - start);
-            } else {
-                index++;
-            }
-        }
         if (result.length != 1) {
             myconsole.implmenterror('Cannot complete parse tree.', result.length);
             result.map((v, i) => {
@@ -5138,7 +5142,7 @@ class calculator {
                 v.printtree()
             });
         }
-        const val = result[0].val;
+        const val = result[0].block;
         if (
             result[0].meta.stop && result[0].meta.stopinfo.return
         ) {
