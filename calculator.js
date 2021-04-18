@@ -12,7 +12,7 @@ class config {
         this.ctrldefine = (grammer, formula, groupid) => {
             return new ctrldefine(grammer, formula, groupid);
         };
-        this.reserved = reserved || ['false', 'true', 'undefined', 'return', 'var', 'break', 'for', 'drop', 'attribute'];
+        this.reserved = reserved || ['false', 'true', 'undefined', 'return', 'var', 'break', 'for', 'drop', 'attribute', 'const'];
 
         this.puncblanks = puncblanks || ["\r\n", "\n"]; // 空白または文末として解釈される文字群
         this.punctuations = punctuations || [';']; // 文末として解釈される文字群
@@ -217,6 +217,27 @@ class config {
                     "{}"
                 ),
 
+                this.opdefine(
+                    ["const", 1],
+                    this.join.order.left,
+                    (argv, meta, self) => {
+                        argv[0].meta.declare = (name, value = 0) => {
+                            const ret = self.rootnamespace.declare(name, value, true, 'object');
+                            if (ret.error) {
+                                argv[0].meta.stop = true;
+                                argv[0].meta.stopinfo = {
+                                    throw: true,
+                                    name: 'throw',
+                                };
+                            }
+                            return ret;
+                        };
+                        argv[0].meta.deftypename = 'object';
+                        argv[0].value;
+                        return undefined;
+                    },
+                    "{}"
+                ),
                 this.opdefine(
                     ["drop", 1],
                     this.join.order.left,
@@ -876,16 +897,18 @@ class config {
                 this.opdefine(
                     ["true"],
                     null,
-                    () => {
-                        return true;
+                    (args, meta) => {
+                        meta.ref = new literal(true, 'bool');
+                        return meta.ref.value;
                     },
                     "bool"
                 ),
                 this.opdefine(
                     ['false'],
                     null,
-                    () => {
-                        return false;
+                    (argv, meta) => {
+                        meta.ref = new literal(false, 'bool');
+                        return meta.ref.value;
                     },
                     "bool"
                 ),
@@ -898,8 +921,10 @@ class config {
                         return false;
                     },
                     this.join.order.left,
-                    (val, meta, self) => {
-                        return parseInt(self.operator.keyword, 16);
+                    (argv, meta, self) => {
+                        const num = parseInt(self.operator.keyword, 16);
+                        meta.ref = new literal(num, 'number');
+                        return meta.ref.value;
                     },
                     "number"
                 ),
@@ -912,8 +937,11 @@ class config {
                         return false;
                     },
                     this.join.order.left,
-                    (val, meta, self) => {
-                        return Number(self.operator.keyword);
+                    (argv, meta, self) => {
+                        const num = Number(self.operator.keyword);
+                        // refにliteralを入れてやれば、リテラルもメタ情報を埋め込める
+                        meta.ref = new literal(num, 'number');
+                        return meta.ref.value;
                     },
                     "number"
                 ),
@@ -1019,7 +1047,8 @@ class config {
                                 str += c;
                             }
                         }
-                        return str;
+                        meta.ref = new literal(str, 'string');
+                        return meta.ref.value;
                     },
                     "string"
                 ),
@@ -2136,7 +2165,8 @@ class interpretation {
         } else if (this.parent) {
             return this.parent.childnamespace;
         }
-        return new property();
+        this.rootnamespace = new property();
+        return this.meta.rootnamespace;
     }
 
     set rootnamespace(val) {
@@ -2149,6 +2179,11 @@ class interpretation {
 
     set childnamespace(val) {
         this.meta.childnamespace = val;
+    }
+
+    newchildnamespace(global = true) {
+        const child = this.rootnamespace.newchild(global);
+        return child;
     }
 
     set property(val) {
@@ -4722,6 +4757,39 @@ class struct{
     // 型名と値を持つvalueインスタンスを受け取る？
 }
 
+class literal {
+    constructor(val, typename) {
+        this.newValue = val;
+        this.newType = typename;
+        this._constant = true;
+        this.fixed = true;
+    }
+
+    get value() {
+        return this._value;
+    }
+    get constant() {
+        return this._constant;
+    }
+
+    set newValue(val) {
+        this._value = val;
+    }
+    set newType(val) {
+        this._type = val;
+    }
+
+    set fixed(val) {
+        this._fixed = val;
+    }
+    get fixed() {
+        return this._fixed && this.constant;
+    }
+    get type() {
+        return this._type;
+    }
+}
+
 class value {
     constructor(val, constant, typename, setter, cast) {
         this._cast = cast;
@@ -4764,15 +4832,26 @@ class value {
         this._type = val;
     }
 
+    set fixed(val) {
+        this._fixed = val;
+    }
+    get fixed() {
+        return this._fixed && this.constant;
+    }
+
     set value(val) {
         if (this.constant) {
             myconsole.programerror("This is constant.");
-        } else if (this.setter) {
+            return;
+        }
+        if (this.setter) {
             this.setter(this, this.cast(val));
         } else {
             this.newValue = val.value;
             this.newType = val.type;
         }
+        // 値の由来が固定的かどうか
+        this.fixed = val.fixed;
     }
 
     get value() {
@@ -4843,7 +4922,7 @@ class myArray {
         }
         if (val !== undefined) {
             if (this._array[index] === undefined) {
-                this._array[index] = new value(val, false, 'array element', this._setter);
+                this._array[index] = new value(val, false, undefined, this._setter);
             } else {
                 this._array[index].value = val;
             }
@@ -4985,6 +5064,10 @@ class property {
         this.reserved = {};
         this.nodeclaration = global; // trueのとき、宣言無しのsetはグローバル領域で覚える
         this._using = [];
+    }
+
+    newchild(global = true) {
+        return new property(this, global);
     }
 
     toString  () {
