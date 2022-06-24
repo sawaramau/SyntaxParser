@@ -11,7 +11,7 @@
     "license": "MIT",
     "dependencies": {
         "d3-node": "^2.2.2",
-        "jsdom": "^9.12.0",
+        "jsdom": "^16.5.0",
         "svgexport": "^0.4.1"
     }
 }
